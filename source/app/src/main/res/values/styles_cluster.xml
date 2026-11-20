@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  仪表屏（display 1）透明自绘卡片的主题。
+  从「仪表助理」clusterlab/res/values/styles.xml 原样迁移，未做任何改动。
+  只被未来的 HudActivity 使用，灵手现有 Theme.LingShou 不受影响。
+-->
+<resources>
+    <style name="OverlayTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <!-- 卡片是"叠在全屏导航之上"的信息层：窗口必须真透明，否则会整块盖黑导航 -->
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

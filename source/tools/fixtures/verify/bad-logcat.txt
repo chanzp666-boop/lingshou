@@ -1,0 +1,4 @@
+11-11 22:50:01.000 I/LsFid   ( 1234): [LsFid] ok n=84/131 soc=NaN mileage=48664.3 evRangeKm=NaN
+11-11 22:50:01.100 E/CLUSTERLAB( 1234): CLUSTERLAB: fid n=84/131 soc=NaN rng=NaN/NaN cell=3.293/3.285 hv=463.0 ins=65534.0 in/out=28.0/28.0 gun=2.0
+11-11 22:50:02.000 E/LingShou ( 1234): CLUSTERLAB: 刷新卡死 15008ms，强制解锁
+11-11 22:50:03.000 E/ShellManager( 1234): 通道执行失败（5s 内已重探过，直接返回）

@@ -1,0 +1,17 @@
+## 1.5.1（versionCode 2691，2026-11-21）—— 公开正式版
+
+- **版本**：`versionCode 2691` / `versionName 1.5.1`；包名 `com.byd.ls`，与自用版同包名但使用独立 release 签名。
+- **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；152 个单测，0 失败 / 0 错误（2 跳过）。
+- **产物**：`apk/lingshou-1.5.1.apk`，**1,528,727 B**，sha256 `1cc6e0156ada88406a97d95fd336e5e9cb8ca12fa0af5967d7390b1b5624db42`。
+- **修复**：休眠/重启后主动重绑通知监听，媒体修复节拍缩到 2 分钟；繁体歌名转简体搜索并清一次旧负缓存；双指空调 HUD 固定原厂深灰。
+- **硬件/远程边界**：公开包远程调试固定关闭；不包含 `com.byd.ls.action.RPC`；远程 Agent 组件不可外部拉起。
+- **权限**：保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`；移除 `ACTION_RPC`。
+- **安装代价**：公开版与自用版签名不同，不能覆盖安装或共存；安装前必须卸载旧自用版，应用数据会丢失。
+- **仓库**：旧 tag、旧 Release、旧 APK 已清理；只保留当前公开版。
+
+## 1.5-public（versionCode 2690，2026-11-21）—— 首次公开版
+
+- 首次公开构建，独立 release 证书；恢复保活权限，移除 `ACTION_RPC`，远程调试固定关闭。
+- 清理旧历史、旧 tag、旧 Release、旧 APK 与内部文档。
+
+> 本公开仓只保留当前 1.5.1；自用包、内部文档和远程运维工具不在此仓库。

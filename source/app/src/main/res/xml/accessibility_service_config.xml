@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  无障碍配置（1.4.6 起为「完整版」）。
+  · 只监听窗口状态变化，用于探测输入法键盘
+  · canRetrieveWindowContent 必须为 true：getWindows() 在 Android 10 上除了
+    flagRetrieveInteractiveWindows 之外还要求该能力，否则窗口列表为空/抛异常。
+  · canPerformGestures=true（1.4.91 起，对齐迪加 com.van.diplus：动作可 dispatchGesture 注入，
+    不再只靠 input keyevent 200–400ms）。
+  · 1.4.91 事件口径对齐迪加：只订阅 typeWindowStateChanged（迪加 0x20）。
+    注意 eventTypes 同时受 LsAccessibilityService.kt:77 的 setServiceInfo 约束，两处必须一致。
+
+  【H1/H2 判定结论（2026-11-08，docs/08 §3）】
+  把本文件精简到最小集（只 eventTypes/feedbackType/notificationTimeout/description）后：
+    · 标准 AOSP API 29 模拟器（ling29）：**一次就绑上**，
+      `Bound services` 出现「灵手 · 全屏手势」，`Binding services` 为空；
+    · 本车 DiLink 4.0：仍停在 `Binding` 悬挂（`Bound` 无我们、AMS 无该服务 ServiceRecord）。
+  结论：**我们的配置合法（H2 排除）**；本车 AMS 限制第三方无障碍绑定（H1 成立）。
+  因此恢复完整配置——车机上绑不上时它不生效，但换车/系统升级后立即具备完整能力。
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:notificationTimeout="100"
+    android:description="@string/accessibility_desc" />

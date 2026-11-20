@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜间：保留原深色驾驶舱配色 -->
+    <color name="bg_root">#0E1116</color>
+    <color name="bg_card">#1A1F27</color>
+    <color name="bg_card_alt">#20262F</color>
+    <color name="bg_tab_bar">#151A21</color>
+    <color name="stroke">#2C333D</color>
+
+    <color name="accent">#4C8DFF</color>
+    <color name="accent_dark">#2F5FB8</color>
+
+    <color name="text_primary">#E8EAED</color>
+    <color name="text_secondary">#9AA4B2</color>
+    <color name="text_tertiary">#6B7480</color>
+
+    <color name="state_ok">#3DD68C</color>
+    <color name="state_warn">#FFB74D</color>
+    <color name="state_error">#FF6B6B</color>
+</resources>

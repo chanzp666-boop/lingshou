@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LsSeekBar" parent="Widget.AppCompat.SeekBar">
+        <item name="android:progressTint">@color/accent</item>
+        <item name="android:thumbTint">@color/accent</item>
+        <item name="android:progressBackgroundTint">@color/stroke</item>
+        <item name="android:minHeight">12dp</item>
+        <item name="android:maxHeight">12dp</item>
+        <item name="android:splitTrack">false</item>
+    </style>
+
+    <style name="LsButtonPrimary" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_button_primary</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">@dimen/text_h2</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:minHeight">@dimen/btn_big</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <style name="LsButtonGhost" parent="Widget.AppCompat.Button.Borderless">
+        <item name="android:background">@drawable/bg_button_ghost</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">@dimen/text_body</item>
+        <item name="android:minHeight">@dimen/touch_min</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+</resources>

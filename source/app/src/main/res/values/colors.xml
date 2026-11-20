@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 日间：浅色驾驶舱配色，跟随系统 uiMode 自动切换 -->
+    <color name="bg_root">#F6F7F9</color>
+    <color name="bg_card">#FFFFFF</color>
+    <color name="bg_card_alt">#EEF1F5</color>
+    <color name="bg_tab_bar">#FFFFFF</color>
+    <color name="stroke">#D9DFE7</color>
+
+    <color name="accent">#2F6FEB</color>
+    <color name="accent_dark">#1F4FAF</color>
+
+    <color name="text_primary">#18212C</color>
+    <color name="text_secondary">#5C6877</color>
+    <color name="text_tertiary">#8A95A3</color>
+
+    <color name="state_ok">#0E8A5F</color>
+    <color name="state_warn">#A96500</color>
+    <color name="state_error">#C62828</color>
+
+    <!-- 双指空调 HUD：固定 DiLink 5 原厂深灰，不跟随系统深浅模式 -->
+    <color name="ac_hud_bg">#D93A4048</color>
+</resources>

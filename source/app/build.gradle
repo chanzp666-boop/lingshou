@@ -1,0 +1,178 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// Robolectric 需要一个可写的 home（CI/沙箱下 ~ 可能不可写），并且目录必须先存在，
+// 否则 MavenDependencyResolver 建下载锁失败（Couldn't create lock file）。
+def robolectricHome = rootProject.file('build/robolectric-home')
+
+android {
+    namespace 'com.byd.ls'
+    compileSdk 34
+    // 固定工具链：不 pin 的话 AGP 会按自身默认值自动下载 NDK/build-tools，换机器产物不一致。
+    buildToolsVersion '34.0.0'
+    ndkVersion '25.1.8937393'
+
+    // 公开包使用独立 release 证书；私钥与口令只存在于发布机，不入库。
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("LS_PUBLIC_STORE_FILE") ?: "keystore/ls-public-release.jks")
+            storePassword System.getenv("LS_PUBLIC_STORE_PASSWORD")
+            keyAlias System.getenv("LS_PUBLIC_KEY_ALIAS") ?: "lingshou-public"
+            keyPassword System.getenv("LS_PUBLIC_KEY_PASSWORD")
+        }
+    }
+
+    defaultConfig {
+        // 公开版与自用版使用同一包名；两者不能共存，公开版只面向全新安装。
+        // 独立 release 签名与自用 debug 签名不同，无法覆盖安装。
+        applicationId "com.byd.ls"
+        // DiLink 4.0 = Android 10 = API 29。min/target 都锁 29，避免高版本 API 误用。
+        minSdk 29
+        targetSdk 29
+        versionCode 2691
+        versionName "1.5.1"
+        buildConfigField "boolean", "PUBLIC_BUILD", "true"
+
+        // 只保留车载实际用到的语言：appcompat/material 自带几十种语言的字符串，
+        // resources.arsc 里 953 KB 有一大半是它们（实测砍掉后包体少约 700 KB）。
+        resourceConfigurations += ['zh', 'zh-rCN', 'en']
+
+        ndk {
+            // DiLink 4.0 车机主流为 arm64，保留 v7a 兼容旧硬件
+            // DiLink 4.0 车机是 arm64；v7a 那份 so 只占 10 KB，但没有 32 位设备在跑，
+            // 顺手去掉，减少一份 native 加载面。
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags '-std=c++17 -fvisibility=hidden'
+                arguments '-DANDROID_STL=c++_static'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true          // RemoteConfig 用 BuildConfig.DEBUG 判断是否允许 ws://（仅模拟器）
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+
+    packagingOptions {
+        jniLibs { useLegacyPackaging = false }
+        resources { excludes += ['META-INF/*.version', 'META-INF/*.kotlin_module'] }
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+            all {
+                // 沙箱里 ~ 不可写：把 Robolectric 的锁/缓存目录重定向到工作区，
+                // 并让它直接使用工程内已缓存的 android-all-instrumented（离线，不联网下载）。
+                // ROBOLECTRIC_DEPS 指向存放 android-all-instrumented-10-*.jar 的目录；
+                // 未设置时回退到工程外的 toolchain 目录（本机构建用）。
+                systemProperty 'user.home', robolectricHome.absolutePath
+                // 本机/CI 若提供离线 jar 目录，就用离线模式；否则让 Robolectric 自行下载，
+                // 这样工程拷到另一台 Mac 不会依赖 ../../toolchain 的绝对路径。
+                // 默认用 $HOME/.robolectric-deps（本机已把 8 个 android-all-instrumented jar
+                // 用符号链接指到 ~/.m2）。build/ 每次 clean 都会清空，联网重下 116 MB 会把
+                // testDebugUnitTest 挂住十几分钟；有本地缓存就直接离线。
+                def robolectricDir = System.getenv('ROBOLECTRIC_DEPS') ?: ((System.getenv('HOME') ?: '') + '/.robolectric-deps')
+                if (robolectricDir && new File(robolectricDir).isDirectory()) {
+                    systemProperty 'robolectric.offline', 'true'
+                    systemProperty 'robolectric.dependency.dir', robolectricDir
+                } else {
+                    systemProperty 'robolectric.offline', 'false'
+                }
+            }
+        }
+    }
+
+    lint {
+        // 本应用为车机侧载应用，不走 Google Play；targetSdk 29 是刻意对齐 DiLink 4.0(Android 10)，
+        // 关闭仅面向上架商店的 targetSdk 下限检查，其余 lint 致命错误仍照常阻断构建。
+        disable 'ExpiredTargetSdkVersion'
+    }
+}
+
+tasks.withType(Test).configureEach {
+    // clean 会删掉 build/，这里在测试真正执行前再建一次，保证 ./gradlew clean test 也不炸。
+    doFirst { robolectricHome.mkdirs() }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.17'
+
+    // adblib —— 1.2.21 起的首发特权通道：App 内直接讲 adb 协议连 127.0.0.1:5555。
+    // 迪友（diyou3.1）用的就是这套实现（其内部改名为 com.smg.adb），协议行为已在实车验证。
+    // 1.3 已在本机 gradle 缓存，--offline 可构建。
+    implementation 'com.tananaev:adblib:1.3'
+
+    // BYD framework 编译期 stub（由 helper/stub 生成，tools/build-framework-stub.sh）：
+    // 只为让 App 能 extends AbsBYDAuto*Listener（具名回调），compileOnly → 不进 APK。
+    compileOnly files('libs/byd-framework-stub.jar')
+
+    // 远程调试的车机侧 WS 客户端（只做出向连接；纯 Java，无 native）
+    implementation 'org.java-websocket:Java-WebSocket:1.5.6'
+
+    // 1.2.22：Shizuku 通道与 ShizukuCompat 反射层已整体删除，aidl 依赖一并移除，
+    // ADB 只保留 adblib 一路（现场要求"只保留一路授权"）。
+}
+// macOS（桌面/iCloud 同步、Finder 复制）会在 build/ 里生成「BuildConfig 2.java」这类副本，
+// javac 把副本当成第二份源文件 → 「类 X 是公共的，应在名为 X.java 的文件中声明」，
+// 让 :app:compileReleaseJavaWithJavac / parseReleaseLocalResources 无端失败（2026-11-11 踩了三次）。
+// 每次编译前清一遍，比手工 find -delete 可靠；只删以「 数字.」结尾的副本，不碰真产物。
+// 1.4.119：不止源码，dex/jar/apk/so 副本同样致命 —— mergeProjectDexDebug 报
+// 「Type com.byd.ls... is defined multiple times: AlarmKeeper 4.dex / AlarmKeeper.dex」。
+// 所以在任何会读 build/ 的任务开跑前，先把「 数字.<ext>」副本全清掉。
+def purgeSyncCopies = {
+    def dup = []
+    project.buildDir.eachFileRecurse { f ->
+        if (f.isFile() && f.name ==~ /.* \d+\.[A-Za-z0-9]+$/) dup << f
+    }
+    dup.each { it.delete() }
+    if (!dup.isEmpty()) println "[build] 清理同步副本 " + dup.size() + " 个"
+}
+gradle.taskGraph.whenReady { purgeSyncCopies() }
+gradle.projectsEvaluated {
+    tasks.matching {
+        it.name.startsWith('compile') || it.name.startsWith('parse') ||
+            it.name.startsWith('merge') || it.name.startsWith('package') ||
+            it.name.startsWith('transform') || it.name.startsWith('check') ||
+            it.name.startsWith('assemble')
+    }.configureEach { doFirst { purgeSyncCopies() } }
+}

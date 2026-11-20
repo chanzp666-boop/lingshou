@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">灵手</string>
+    <string name="accessibility_label">灵手 · 全屏手势（键盘避让与应用识别）</string>
+    <string name="accessibility_desc">用于检测输入法键盘弹出时自动暂停底部上滑手势。本服务不读取、不上传任何屏幕内容。</string>
+
+    <string name="notif_channel_id">ls_keepalive</string>
+    <string name="notif_channel_name">手势服务常驻</string>
+    <string name="notif_title">灵手 · 全屏手势运行中</string>
+    <string name="notif_text">左右边缘滑动返回 · 底部上滑回桌面</string>
+</resources>

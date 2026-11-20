@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ===== 权限 ===== -->
+    <!-- 内置 ADB 客户端连接 127.0.0.1:5555 需要网络权限（回环地址同样受限） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 开机静默自启 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 部分车机厂商定制的上电广播，一并监听 -->
+    <uses-permission android:name="android.permission.QUICKBOOT_POWERON" />
+    <uses-permission android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+
+    <!-- 前台服务 + 心跳保活 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- 保活/闹钟唤醒；与自用版保持一致，避免 OEM 后台策略差异 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 边缘悬浮条 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- 仪表模块：卡片要读 /sdcard/clusterlab_*.txt（样式/主题/燃油曲线/媒体心跳）。
+         targetSdk 29 保留 legacy 存储语义，这两条仍按危险权限处理，由 YBPrivilege 走 pm grant 自动授予。 -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <!-- 无障碍自愈：声明后可由 shell 执行 `pm grant` 授予，App 才能自己把
+         enabled_accessibility_services 写回，不再每次开机都依赖外部 ADB 在线。
+         该权限为 development 级，pm grant 可授；未授予时自动降级到 shell 通道。 -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- self-heal / 诊断：DUMP 让 App 直接 dumpsys accessibility，ADB 不在线时也能自检绑定状态。
+         同样是 development 级，可由 pm grant 授予。 -->
+    <uses-permission android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
+
+    <uses-feature android:name="android.hardware.type.automotive" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="true"
+        tools:ignore="UnsupportedTvHardware" />
+
+    <application
+        android:name=".LsApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:hardwareAccelerated="true"
+        android:largeHeap="false"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.LingShou">
+
+        <!-- ===== 设置界面（仅用户主动点击才出现，开机自启绝不拉起它） ===== -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|density"
+            android:theme="@style/Theme.LingShou">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- 车机桌面/应用抽屉常见分类，尽量让图标露出来 -->
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- ===== 仪表卡片（display 1 自绘）：由一键启动 / 自愈用 am start-activity 指定 display 1 拉起 ===== -->
+        <activity
+            android:name=".cluster.ui.CardActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.byd.ls.cluster"
+            android:theme="@style/OverlayTheme"
+            android:configChanges="orientation|screenSize|density" />
+
+        <!-- ===== 仪表模块的通知监听：读媒体信息写 /sdcard/clusterlab_media.txt ===== -->
+        <service
+            android:name=".cluster.data.MediaListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- ===== 手势监听服务（主进程，前台） ===== -->
+        <service
+            android:name=".service.GlobalGestureService"
+            android:exported="false"
+            android:enabled="true"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false" />
+
+        <!-- ===== 无障碍服务：IME 探测 + 导航/窗口事件 ===== -->
+        <service
+            android:name=".service.LsAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- ===== 守护服务（独立进程，与主进程互拉） ===== -->
+        <!-- 远程调试 Agent：只出向连我们的 relay，不开入站端口 -->
+        <service
+            android:name=".remote.RemoteAgent"
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <service
+            android:name=".service.GuardService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:process=":guard"
+            android:stopWithTask="false" />
+
+        <!-- ===== 开机广播：静默启动，不弹任何 UI ===== -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true"
+            android:enabled="true"
+            android:directBootAware="false">
+            <!-- 1.4.61：priority 1000 → 9900（对齐迪友 StartReceiver 的抢跑位），只影响我们自己的投递顺序 -->
+            <intent-filter android:priority="9900">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+                <!-- 解锁/亮屏也当作启动信号：这台车机熄火是休眠，BOOT_COMPLETED 根本不来 -->
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <!-- 1.4.96：车机唤醒不一定发 USER_PRESENT，SCREEN_ON 才是可靠的亮屏信号 -->
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.SCREEN_OFF" />
+                <!-- 仪表模块的链式闹钟（AlarmKeeper 自己排自己收，只有本 App 会发） -->
+                <action android:name="com.byd.ls.cluster.TICK" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ===== 外部拉起入口：shell 看门狗 / native 守护用显式广播，避开 non-exported 限制 ===== -->
+        <receiver
+            android:name=".receiver.RestartReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.byd.ls.action.RESTART" />
+                <action android:name="com.byd.ls.action.HEAL_GESTURE" />
+                <action android:name="com.byd.ls.action.HEAL_CARD" />
+                <action android:name="com.byd.ls.action.A11Y_SOFT_RESET" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ===== JobScheduler 持久化兜底：重启后由 system_server 唤醒 ===== -->
+        <service
+            android:name=".service.BootJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- ===== 开机 3 分钟的一次性补拉（persisted，重启后仍在） ===== -->
+        <service
+            android:name=".service.BootAssistJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- ===== AlarmManager 心跳兜底 ===== -->
+        <receiver
+            android:name=".receiver.HeartbeatReceiver"
+            android:exported="false"
+            android:enabled="true" />
+
+    </application>
+    <!-- BYD 原生车辆接口（docs/11）：仅为读取仪表同源的油耗/里程/续航；
+         若车机把权限判为 privapp 级，声明也无害（拿不到就回退自算）。 -->
+    <uses-permission android:name="android.permission.BYDAUTO_STATISTIC_GET" />
+    <uses-permission android:name="android.permission.BYDAUTO_STATISTIC_COMMON" />
+    <uses-permission android:name="android.permission.BYDAUTO_BODYWORK_GET" />
+    <uses-permission android:name="android.permission.BYDAUTO_TYRE_GET" />
+    <!-- instrument（仪表口径）：油耗/胎压/等效油耗在另一台设备上，注册时框架会 check 这条。
+         证据：native-events.log 14394 行 "register instrument ERR SecurityException: … BYDAUTO_INSTRUMENT_COMMON"。
+         _GET 未在错误里出现，按 statistic 的成对关系一并声明（拿不到也无害）。 -->
+    <uses-permission android:name="android.permission.BYDAUTO_INSTRUMENT_COMMON" />
+    <uses-permission android:name="android.permission.BYDAUTO_INSTRUMENT_GET" />
+</manifest>

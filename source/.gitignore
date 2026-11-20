@@ -1,0 +1,24 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/app/build
+/.sdk-shim
+/captures
+.externalNativeBuild
+.cxx
+
+# 构建产物
+*.apk
+!/app/src/main/assets/ls-helper.apk
+
+# 三指空调移植参考（对照用，1.5.0 已并入 app 主源码）
+/reference/
+
+# helper dex 是 tools/build-helper.sh 的中间产物；ls-helper.apk 是运行时资源，已保留
+/app/src/main/assets/ls-helper.dex
+
+# 签名 keystore 不入库（交接标准）；磁盘保留供本机构建，备份在 02-发布产物/
+/keystore/ls-debug.keystore

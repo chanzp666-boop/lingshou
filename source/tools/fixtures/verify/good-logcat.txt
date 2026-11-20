@@ -1,0 +1,5 @@
+11-11 22:50:01.000 I/LsFid   ( 1234): [LsFid] ok n=84/131 soc=25.0 mileage=48664.3 evRangeKm=32.0 tirePressFL=242.0 tirePressFR=242.0 insideTemp=28.0
+11-11 22:50:01.100 E/CLUSTERLAB( 1234): CLUSTERLAB: fid n=84/131 soc=25.0 rng=32.0/270.0 cell=3.293/3.285 hv=463.0 ins=20125.0 in/out=28.0/28.0 gun=2.0
+11-11 22:50:04.000 I/LsFid   ( 1234): [LsFid] ok n=84/131 soc=25.0 mileage=48664.3 evRangeKm=32.0 tirePressFL=242.0 tirePressFR=242.0 insideTemp=28.0
+11-11 22:50:04.100 E/CLUSTERLAB( 1234): CLUSTERLAB: fid n=84/131 soc=25.0 rng=32.0/270.0 cell=3.293/3.285 hv=463.0 ins=19209.0 in/out=28.0/28.0 gun=2.0
+11-11 22:50:07.000 E/NAV       ( 1234): NAV_WIN active=1 since=1.2s
