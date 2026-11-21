@@ -29,7 +29,6 @@ import kotlinx.coroutines.withContext
 object AdbManager {
 
     private const val TAG = "AdbManager"
-    private const val KEY_ADB_TRUSTED = "adb_trusted"
 
     const val PKG = "com.byd.ls"
 
@@ -62,16 +61,11 @@ object AdbManager {
     /**
      * 尝试已知 ADB 端点（1.2.22 起只剩本地 127.0.0.1:5555）。
      *
-     * 只在 key 已被信任时才会调用（未授权过就完全跳过，避免 adbd 弹 RSA）。
+     * 只做静默握手（abortOnUnauthorised=true）：key 已被信任就自动连上，未信任只会
+     * 失败，不会让 adbd 弹 RSA。需要授权时由用户点「一键启动/修复」走 [AdbBootstrap]。
      * 成功后后续 [PrivilegeBootstrap.repair] 就能重新 `pm grant` / 补无障碍。
      */
     suspend fun autoConnectKnown(ctx: Context): Boolean = withContext(Dispatchers.IO) {
-        val prefs = ctx.getSharedPreferences("ls_net", Context.MODE_PRIVATE)
-        // 从未成功授权过 ADB 的机器：开机不要探测 ADB，彻底避免 adbd 弹 RSA
-        if (!prefs.getBoolean(KEY_ADB_TRUSTED, false)) {
-            LsLog.i(TAG, "未授权过 ADB，跳过 ADB 探测（避免 RSA 弹窗）")
-            return@withContext false
-        }
         if (!AdbEndpoint.probe()) return@withContext false
         // 用 adblib 直接静默握手：key 已在 adb_keys 里时不会弹窗
         val ok = ShellManager.reprobe(ctx).isPrivileged()

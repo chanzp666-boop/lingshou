@@ -1,3 +1,13 @@
+## 1.5.1.1（versionCode 2692，2026-11-22）—— ADB 授权修复
+
+- **版本**：`versionCode 2692` / `versionName 1.5.1.1`；包名 `com.byd.ls`，仍使用独立公开 release 签名。
+- **修复**：手动「一键启动 / 修复」改走 `AdbLibChannel.connectForAuthorization()`，adblib `abortOnUnauthorised=false`，第二次 AUTH 发送 `AUTH_RSAPUBLICKEY`；此前 abort=true 会在发公钥前抛异常，车机不弹「允许 USB 调试吗」。
+- **授权窗口**：连接保持到用户点「允许」或 60s 超时；成功后可用 uid 2000 shell。
+- **开机**：静默探测去掉从未写入的 `adb_trusted` 门槛；已信任 key 可自动连接，未信任时只静默失败，不弹 RSA。
+- **边界**：`AUTO_AUTH_ENABLED` 仍为 false，避免开机/心跳重复弹窗；本次只改公开仓，自用版 1.5.1 未动。
+- **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；152 个单测，0 失败 / 0 错误（2 跳过）。
+- **产物**：`apk/lingshou-1.5.1.1.apk`，**1,528,727 B**，sha256 `99046a10c92d7fe24682d7ee18c4b93f1ec44f07a632ab403bd787c0ea22d23b`。
+
 ## 1.5.1（versionCode 2691，2026-11-21）—— 公开正式版
 
 - **版本**：`versionCode 2691` / `versionName 1.5.1`；包名 `com.byd.ls`，与自用版同包名但使用独立 release 签名。
@@ -14,4 +24,4 @@
 - 首次公开构建，独立 release 证书；恢复保活权限，移除 `ACTION_RPC`，远程调试固定关闭。
 - 清理旧历史、旧 tag、旧 Release、旧 APK 与内部文档。
 
-> 本公开仓只保留当前 1.5.1；自用包、内部文档和远程运维工具不在此仓库。
+> 本公开仓只保留当前 1.5.1.1；自用包、内部文档和远程运维工具不在此仓库。

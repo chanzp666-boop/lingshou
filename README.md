@@ -5,26 +5,33 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 这是公开专用仓库，**只保留当前公开版**：
 
-- 公开包：`com.byd.ls` / `versionCode 2691` / `versionName 1.5.1`
+- 公开包：`com.byd.ls` / `versionCode 2692` / `versionName 1.5.1.1`
 - 公开版使用独立 release 证书签名，不能覆盖自用版，也不能与自用版共存
 
-> **安装前必须卸载旧的 `com.byd.ls`**。公开版与自用版签名不同，Android 会拒绝覆盖安装；卸载会清除应用数据。公开版只面向全新安装。
+> **安装前必须卸载旧的 `com.byd.ls`（自用版）**。公开版与自用版签名不同，Android 会拒绝覆盖安装；卸载会清除应用数据。已装公开版 1.5.1 的可以直接升级到 1.5.1.1。
 >
 > 如果车机上装过旧的 `com.byd.ls.public` 公开版，也要一并卸载；它是另一个包名，不会被新包覆盖。
 
 ## 下载
 
-- `apk/lingshou-1.5.1.apk` — 1.5.1 公开版
+- `apk/lingshou-1.5.1.1.apk` — 1.5.1.1 公开版
 - `apk/SHA256SUMS.txt` — APK 校验值
 
 | 项 | 值 |
 |---|---|
 | 包名 | `com.byd.ls` |
-| versionCode / versionName | `2691` / `1.5.1` |
+| versionCode / versionName | `2692` / `1.5.1.1` |
 | 大小 | 1,528,727 B |
-| SHA-256 | `1cc6e0156ada88406a97d95fd336e5e9cb8ca12fa0af5967d7390b1b5624db42` |
+| SHA-256 | `99046a10c92d7fe24682d7ee18c4b93f1ec44f07a632ab403bd787c0ea22d23b` |
 | 签名 | 独立公开 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭，不包含 relay 地址、bootstrap、operator token |
+
+## 1.5.1.1 修复
+
+- 修复新车机上「ADB 握手失败、车机不弹允许框」：手动「一键启动 / 修复」改走 adblib 的授权模式（`abortOnUnauthorised=false`），真正发送 `AUTH_RSAPUBLICKEY`，adbd 才会显示「允许 USB 调试吗」。
+- 授权成功后即可拿到 uid 2000 shell；首次使用必须点一次「一键启动 / 修复」并在车机屏幕上点「允许」。
+- 开机静默探测不再依赖从未写入的 `adb_trusted` 标记：已信任 key 的车机可自动连上；未信任时只静默失败，不会弹 RSA。
+- 自动授权开关仍保持关闭，避免历史上的弹窗风暴。
 
 ## 1.5.1 修复
 
@@ -34,11 +41,11 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 ## 功能与权限
 
-- 公开版与自用版同源，手势、仪表卡片、媒体、空调、无障碍、看门狗、ADB 自授权逻辑一致。
+- 公开版与自用版同源，手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑一致；1.5.1.1 的 ADB 授权修复只进入公开版，自用版 1.5.1 未改动。
 - 远程调试固定关闭：`RemoteConfig` 在公开构建中恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - 已移除 `com.byd.ls.action.RPC` 广播入口，不能通过广播调用 `RemoteRpc`。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`，与自用版保持一致，减少 OEM 后台策略差异。
-- 一键 ADB 授权仍要求用户打开车机 ADB、确认 RSA；`WRITE_SECURE_SETTINGS`、`DUMP` 需要 ADB 授权后才能使用。
+- 一键 ADB 授权要求用户打开车机 ADB、确认 RSA；`WRITE_SECURE_SETTINGS`、`DUMP` 需要 ADB 授权后才能使用。
 - 公开包不含 relay 配置、设备 ID、bootstrap/operator/ngrok 凭据、签名私钥或口令。
 
 ## 源码

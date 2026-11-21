@@ -5,11 +5,18 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 
 ## 版本
 
-- `versionCode 2691` / `versionName 1.5.1`
+- `versionCode 2692` / `versionName 1.5.1.1`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，与自用版保持一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
+
+## 1.5.1.1 修复
+
+- 手动「一键启动 / 修复」改走 `AdbLibChannel.connectForAuthorization()`：adblib 以 `abortOnUnauthorised=false` 在第二次 AUTH 发送 `AUTH_RSAPUBLICKEY`，车机才会弹「允许 USB 调试吗」。
+- 授权连接保持到用户点「允许」或 60s 超时；成功后可拿 uid 2000 shell。
+- 开机静默探测去掉未写入的 `adb_trusted` 门槛：已信任 key 可自动连接；未信任时静默失败，不弹 RSA。
+- `AUTO_AUTH_ENABLED` 保持关闭，避免重复弹窗。
 
 ## 1.5.1 修复
 

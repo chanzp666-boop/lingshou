@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit
  *
  * 本类已经是**唯一**特权通道（1.2.22 删除了自研裸协议客户端与 Shizuku 通道）：
  *  - adblib 走标准 24 字节帧头 + 4096 字节 maxdata，握手/流管理由库的线程负责；
- *  - 库的 AUTH 节奏是「第一轮签名，之后只发公钥」，与迪友线上实现一致；
+ *  - 库的 AUTH 节奏是「第一轮签名，第二次 AUTH 才发公钥」；静默路径必须 abort，
+ *    手动授权路径必须放行，否则车机永远不会弹「允许」；
  *  - 库**没有**健康探针，挂起后 isReady() 仍是 true —— 所以本类自己维护 [healthy]，
  *    由 [AdbKeepAlive] 每 14s 探活来纠正。
  *
@@ -93,10 +94,27 @@ class AdbLibChannel(
     override suspend fun connect(): Boolean = connect(false)
 
     /**
-     * [force]=true 时先在退避窗口外做一次完整重连：
-     * 用户点「允许」之后 adbd 需要**新的 CNXN** 才会放行，复用旧握手结果会一直失败。
+     * [force]=true 时先在退避窗口外做一次完整重连。
+     *
+     * 这是**静默**握手：abortOnUnauthorised=true，key 未被信任时不会发公钥、不会弹窗。
+     * 用户手动点「一键启动/修复」时走 [connectForAuthorization]，不要用这个。
      */
-    suspend fun connect(force: Boolean): Boolean = connLock.withLock { withContext(Dispatchers.IO) {
+    suspend fun connect(force: Boolean): Boolean =
+        connectInternal(force, CONNECT_TIMEOUT_MS, abortOnUnauthorised = true)
+
+    /**
+     * 手动授权专用：adblib 只有在 abortOnUnauthorised=false 时，才会在第二次 AUTH
+     * 发送 AUTH_RSAPUBLICKEY；否则 adbd 收不到公钥，车机不会弹「允许 USB 调试吗」。
+     * 连接保持到用户点「允许」或超时。
+     */
+    suspend fun connectForAuthorization(timeoutMs: Long = AUTH_TIMEOUT_MS): Boolean =
+        connectInternal(true, timeoutMs, abortOnUnauthorised = false)
+
+    private suspend fun connectInternal(
+        force: Boolean,
+        timeoutMs: Long,
+        abortOnUnauthorised: Boolean
+    ): Boolean = connLock.withLock { withContext(Dispatchers.IO) {
         if (force) AdbKeepAlive.resetBackoffForRetry()
         closeLocked()
         runCatching {
@@ -113,8 +131,8 @@ class AdbLibChannel(
                 " remote=" + socket.remoteSocketAddress)
             val c = AdbConnection.create(socket, cryptoProvider())
             // 库内跑完 CNXN/AUTH；未授权时抛 AdbAuthenticationFailedException。
-            // abortOnUnauthorised=true：不要干等用户点「允许」，由 AdbBootstrap 走引导流程。
-            val ok = c.connect(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS, true)
+            // 静默路径 abortOnUnauthorised=true；手动授权路径 false，库才会发公钥并等车机弹窗。
+            val ok = c.connect(timeoutMs, TimeUnit.MILLISECONDS, abortOnUnauthorised)
             if (ok) {
                 conn = c
                 healthy = true
@@ -132,7 +150,11 @@ class AdbLibChannel(
                 // 真实健康由第一条业务命令的退出码判定（exec 失败会自动重连一次）。
                 true
             } else {
-                lastDetail = "adblib 握手未完成（超时/未回 CNXN）"
+                lastDetail = if (abortOnUnauthorised) {
+                    "adblib 握手未完成（超时/未回 CNXN）"
+                } else {
+                    "ADB 授权等待超时（未收到 CNXN）"
+                }
                 runCatching { c.close() }
                 AdbKeepAlive.onFailed()
                 LsLog.w(TAG, lastDetail)
@@ -393,6 +415,7 @@ class AdbLibChannel(
         const val DEFAULT_PORT = 5555
         private const val TCP_TIMEOUT_MS = 3_000
         private const val CONNECT_TIMEOUT_MS = 10_000L
+        private const val AUTH_TIMEOUT_MS = 60_000L
         private const val PROBE_TIMEOUT_MS = 4_000L
         private const val EXIT_SENTINEL = "__LS_EXIT__="
 

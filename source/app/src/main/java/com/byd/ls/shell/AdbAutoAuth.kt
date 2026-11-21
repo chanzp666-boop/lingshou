@@ -53,12 +53,11 @@ object AdbAutoAuth {
     private const val REASON_OPEN = "open"
 
     /**
-     * 总开关：1.2.4 的自动授权在 DiLink 4.0 上会变成弹窗风暴。
+     * 总开关：自动触发保持关闭。
      *
-     * 根因是这台车机的 adbd 在「用户点了允许」之后仍不接受我们的签名——每次连接都要重新弹窗，
-     * 而 open 这一路又不受额度约束，MainActivity 每次 onResume（包括弹窗被应答后）都会再发起一次，
-     * 于是形成无限弹窗。在「为什么 key 不被接受」查清之前，先把自动触发整体停掉：
-     * 只保留用户手动点「一键启动」这一条路径，用户不点就绝不弹窗。
+     * DiLink 4.0 上 boot/heartbeat/open 多路自动发起会形成弹窗风暴；现在首次授权
+     * 由用户点「一键启动」走 [AdbBootstrap] 的 connectForAuthorization() 弹一次，
+     * 自动路径不恢复，避免重复弹窗。
      */
     private const val AUTO_AUTH_ENABLED = false
 
