@@ -71,3 +71,8 @@ tools/            构建脚本
 - 不自带 relay/operator/bootstrap 配置；
 - 不包含内部交接文档、设备 ID、远程运维工具、keystore 或口令；
 - 旧版本、旧 tag、旧 Release 与旧 APK 不在本仓库保留。
+
+## 许可协议
+
+本源码快照采用 **PolyForm Noncommercial License 1.0.0**，仅允许非商业用途；禁止销售、付费分发、商业产品/服务集成。商业使用需另行取得作者书面授权。完整条款见仓库根目录 [LICENSE](../LICENSE)。
+

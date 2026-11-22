@@ -40,3 +40,7 @@ export LS_PUBLIC_KEY_PASSWORD=...
 ```
 
 需自备独立 release keystore；不要复用自用包的 debug 证书。
+
+## 许可
+
+本源码快照采用 **PolyForm Noncommercial License 1.0.0**，仅允许非商业用途；商业使用需另行取得作者书面授权。完整条款见仓库根目录 [LICENSE](../LICENSE)。第三方依赖仍按各自许可证使用。
