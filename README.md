@@ -21,7 +21,7 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 |---|---|
 | 包名 | `com.byd.ls` |
 | versionCode / versionName | `2693` / `1.5.1.2` |
-| 大小 | 1,528,727 B |
+| 大小 | 1,532,827 B |
 | SHA-256 | `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765` |
 | 签名 | 独立公开 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭，不包含 relay 地址、bootstrap、operator token |

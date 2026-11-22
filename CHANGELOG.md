@@ -7,7 +7,7 @@
 - 4 轮并发请求，成功 5 秒刷新、失败 15 秒退避；迪加未装、8988 未启动、超时、参数名不匹配或返回失败时静默保持原生值，不阻断启动和刷新。
 - 仅改公开仓；自用版 1.5.1（versionCode 272）未改动。
 - 构建验证：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；152 个单测，0 失败 / 0 错误（2 跳过）。
-- 产物：`apk/lingshou-1.5.1.2.apk`，**1,528,727 B**，sha256 `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765`。
+- 产物：`apk/lingshou-1.5.1.2.apk`，**1,532,827 B**，sha256 `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765`。
 
 ## 1.5.1.1（versionCode 2692，2026-11-22）
 

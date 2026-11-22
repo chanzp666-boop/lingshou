@@ -7,7 +7,7 @@
 | versionCode | 2693 |
 | 包名 | `com.byd.ls` |
 | APK | `apk/lingshou-1.5.1.2.apk` |
-| APK 大小 | 1,528,727 B |
+| APK 大小 | 1,532,827 B |
 | APK SHA256 | `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765` |
 | 签名 | 独立 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭；无 relay/bootstrap/operator；远程 Agent 不可外部拉起 |

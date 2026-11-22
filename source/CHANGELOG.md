@@ -6,7 +6,7 @@
 - **网络**：4 轮并发，连接/读取超时各 1.5s；成功 5s 刷新，失败 15s 退避，避免每 800ms 重复打 4 次。
 - **边界**：仅公开仓改动；自用版 1.5.1 未动。`AndroidManifest` 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，不需要新增权限或网络安全配置。
 - **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；152 个单测，0 失败 / 0 错误（2 跳过）。
-- **产物**：`apk/lingshou-1.5.1.2.apk`，**1,528,727 B**，sha256 `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765`。
+- **产物**：`apk/lingshou-1.5.1.2.apk`，**1,532,827 B**，sha256 `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765`。
 
 ## 1.5.1.1（versionCode 2692，2026-11-22）—— ADB 授权修复
 
