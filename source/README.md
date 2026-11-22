@@ -5,11 +5,17 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 
 ## 版本
 
-- `versionCode 2692` / `versionName 1.5.1.1`
+- `versionCode 2693` / `versionName 1.5.1.2`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，与自用版保持一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
+
+## 1.5.1.2 胎压降级
+
+- 原生 instrument 四轮不全/异常时，从迪加本地 HTTP `127.0.0.1:8988/api/getVal` 补缺失轮位；四轮原生都有效时不请求迪加。
+- 4 轮并发，成功 5s 刷新、失败 15s 退避；迪加未装、8988 未开、超时或返回失败时静默保持原生值。
+- 仅公开仓改动；自用版 1.5.1 未动。Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
 
 ## 1.5.1.1 修复
 

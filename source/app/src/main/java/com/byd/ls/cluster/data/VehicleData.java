@@ -138,19 +138,16 @@ public class VehicleData {
             @Override public void run() {
                 try {
                     {
-                        // 胎压：迪加 HTTP（4 个值并发，节流 2 秒）
+                        // 胎压：1.4.46+ 原生 instrument 优先（INSTRUMENT_2IN1_*_TYRE_PRESSURE，kPa）；
+                        // 1.5.1.2 公开版对原生缺失/异常做迪加 HTTP 降级（仅公开仓，自用版不动）。
                         long nowP = android.os.SystemClock.elapsedRealtime();
                         if (nowP - lastPressureAt >= 2000) {
                             lastPressureAt = nowP;
-                            // 【1.4.18】胎压改原生（BYDAutoTyreDevice），但轮位方法名/索引尚未确认：
-                            // `--list tyre` 可一次枚举全部 getter。确认前保持 -1（界面显示"—"），
-                            // 宁缺勿错——用错值比不显示更糟。也不再回退任何第三方 App。
-                            // 1.4.46+：胎压来自 instrument 设备推送（INSTRUMENT_2IN1_*_TYRE_PRESSURE，kPa）
                             int p0 = (int) nTyreLF, p1 = (int) nTyreRF, p2 = (int) nTyreLB, p3 = (int) nTyreRB;
-                            if (p0 > 0) pressure[0] = p0;
-                            if (p1 > 0) pressure[1] = p1;
-                            if (p2 > 0) pressure[2] = p2;
-                            if (p3 > 0) pressure[3] = p3;
+                            if (isPlausiblePressure(p0)) pressure[0] = p0;
+                            if (isPlausiblePressure(p1)) pressure[1] = p1;
+                            if (isPlausiblePressure(p2)) pressure[2] = p2;
+                            if (isPlausiblePressure(p3)) pressure[3] = p3;
                         }
                     }
 
@@ -168,6 +165,7 @@ public class VehicleData {
                     }
 
                     pollStats(ctx);
+                    applyDijiaTyreFallback();
                     // 电耗也走累计口径，不再混用迪加的行程值
                     ok = true;
                     long nowApi = System.currentTimeMillis();
@@ -240,10 +238,10 @@ public class VehicleData {
                     + " socSave=" + s.value("socSaveMode") + " susp=" + s.value("suspensionMode"));
         }
         double v;
-        v = s.value("tirePressFL"); if (!Double.isNaN(v) && v > 0) { pressure[0] = (int) v; nTyreLF = v; }
-        v = s.value("tirePressFR"); if (!Double.isNaN(v) && v > 0) { pressure[1] = (int) v; nTyreRF = v; }
-        v = s.value("tirePressRL"); if (!Double.isNaN(v) && v > 0) { pressure[2] = (int) v; nTyreLB = v; }
-        v = s.value("tirePressRR"); if (!Double.isNaN(v) && v > 0) { pressure[3] = (int) v; nTyreRB = v; }
+        v = s.value("tirePressFL"); if (!Double.isNaN(v) && v > 0) { nTyreLF = v; if (isPlausiblePressure(v)) pressure[0] = (int) v; }
+        v = s.value("tirePressFR"); if (!Double.isNaN(v) && v > 0) { nTyreRF = v; if (isPlausiblePressure(v)) pressure[1] = (int) v; }
+        v = s.value("tirePressRL"); if (!Double.isNaN(v) && v > 0) { nTyreLB = v; if (isPlausiblePressure(v)) pressure[2] = (int) v; }
+        v = s.value("tirePressRR"); if (!Double.isNaN(v) && v > 0) { nTyreRB = v; if (isPlausiblePressure(v)) pressure[3] = (int) v; }
         // 1.4.119：综合油耗直读（50km 等效，仪表口径）。没有偏置、没有电耗折算 —— 车机给什么就是什么。
         v = s.value("fuelConsumption");
         if (!Double.isNaN(v) && v > 0.05 && v < 60) { nFuelPHM = v; totalPHM = v; }
@@ -553,8 +551,46 @@ public class VehicleData {
     /** 1.4.100：四轮胎压与综合油耗是否都已有有效值（缺一个就值得全量扫一次） */
     private static boolean hasCriticalValues() {
         if (Double.isNaN(nFuelPHM) || nFuelPHM <= 0) return false;
-        if (nTyreLF <= 0 || nTyreRF <= 0 || nTyreLB <= 0 || nTyreRB <= 0) return false;
+        if (!isPlausiblePressure(nTyreLF) || !isPlausiblePressure(nTyreRF)
+                || !isPlausiblePressure(nTyreLB) || !isPlausiblePressure(nTyreRB)) return false;
         return true;
+    }
+
+    /** 公开版 1.5.1.2：只把 >0 且不超过 500 kPa 的值当有效胎压，4094 等哨兵值也走降级。 */
+    private static boolean isPlausiblePressure(double v) {
+        return v > 0 && v <= 500;
+    }
+
+    private static long lastDijiaTyreLogAt = 0L;
+
+    /**
+     * 原生四轮不全时，从迪加本地 HTTP 补缺失轮位；不覆盖已经有效的原生值。
+     * 迪加未装 / 8988 未开 / 超时 / 返回失败时 read() 返回 null 或 -1，这里静默保持原值。
+     */
+    private static void applyDijiaTyreFallback() {
+        if (isPlausiblePressure(nTyreLF) && isPlausiblePressure(nTyreRF)
+                && isPlausiblePressure(nTyreLB) && isPlausiblePressure(nTyreRB)) {
+            return;
+        }
+        int[] p = DijiaTyreSource.read();
+        if (p == null) return;
+        boolean used = false;
+        if (!isPlausiblePressure(nTyreLF) && isPlausiblePressure(p[0])) { nTyreLF = p[0]; used = true; }
+        if (!isPlausiblePressure(nTyreRF) && isPlausiblePressure(p[1])) { nTyreRF = p[1]; used = true; }
+        if (!isPlausiblePressure(nTyreLB) && isPlausiblePressure(p[2])) { nTyreLB = p[2]; used = true; }
+        if (!isPlausiblePressure(nTyreRB) && isPlausiblePressure(p[3])) { nTyreRB = p[3]; used = true; }
+        if (used) {
+            pressure[0] = (int) nTyreLF;
+            pressure[1] = (int) nTyreRF;
+            pressure[2] = (int) nTyreLB;
+            pressure[3] = (int) nTyreRB;
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (now - lastDijiaTyreLogAt >= 30_000L) {
+                lastDijiaTyreLogAt = now;
+                ClusterDebug.e("CLUSTERLAB", "dijia tyre fallback p=" + pressure[0]
+                        + "/" + pressure[1] + "/" + pressure[2] + "/" + pressure[3]);
+            }
+        }
     }
 
     private static volatile boolean fullScanned = false;

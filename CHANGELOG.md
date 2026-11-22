@@ -1,5 +1,14 @@
 # 变更记录
 
+## 1.5.1.2（versionCode 2693，2026-11-22）
+
+- 新增公开版胎压降级：其他 BYD 车型原生 instrument 四轮 ID 不匹配、读数缺失或出现 4094 等异常值时，从迪加本地 HTTP `127.0.0.1:8988/api/getVal` 补缺失轮位。
+- 原生四轮都有效时不请求迪加；迪加只补缺，不覆盖正常原生值，避免影响本车/正常车型。
+- 4 轮并发请求，成功 5 秒刷新、失败 15 秒退避；迪加未装、8988 未启动、超时、参数名不匹配或返回失败时静默保持原生值，不阻断启动和刷新。
+- 仅改公开仓；自用版 1.5.1（versionCode 272）未改动。
+- 构建验证：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；152 个单测，0 失败 / 0 错误（2 跳过）。
+- 产物：`apk/lingshou-1.5.1.2.apk`，**1,528,727 B**，sha256 `74bdc7bc47e639c66b71a00e2148a2c50e739b2e277a14d50edec98623be5765`。
+
 ## 1.5.1.1（versionCode 2692，2026-11-22）
 
 - 修复新车机 ADB 授权不弹窗：手动「一键启动 / 修复」改走 adblib `abortOnUnauthorised=false`，第二次 AUTH 真正发送 `AUTH_RSAPUBLICKEY`，adbd 才会显示「允许 USB 调试吗」；此前静默路径会在发公钥前主动终止，所以车机一直不弹框。
