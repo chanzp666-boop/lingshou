@@ -1,5 +1,14 @@
 # 变更记录
 
+## 1.5.3（versionCode 2696，2026-11-23）
+
+- 空调手势由双指改为三指：三指左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传。
+- `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。
+- 主界面与仪表卡片跟随车机系统 `uiMode` 切换深/浅色；空调 HUD 固定原厂深灰。
+- `AcFeature` 增加对象锁 + helper `flock` 单实例锁，避免 adblib 重试拉起两个 `ls-finger-touch`。
+- 构建验证：JDK 17，`assembleRelease` **BUILD SUCCESSFUL**；手势单测 17/17 通过；`versionCode=2696`、`versionName=1.5.3`。
+- 产物：`apk/lingshou-1.5.3.apk`，**1,532,943 B**，sha256 `ff50272f29613564373e08be77a6bb464ca0b7e398feb8c20f4a36052356ba85`。
+
 ## 1.5.2（versionCode 2695，2026-11-23）
 
 - “全关即停”修复：卡片总开关新增跨进程 flag，私有 `ls_card_any.flag` + 公共 `/sdcard/clusterlab_card_any.txt`。

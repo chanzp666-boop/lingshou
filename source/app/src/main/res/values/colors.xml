@@ -18,6 +18,6 @@
     <color name="state_warn">#A96500</color>
     <color name="state_error">#C62828</color>
 
-    <!-- 双指空调 HUD：固定 DiLink 5 原厂深灰，不跟随系统深浅模式 -->
+    <!-- 三指空调 HUD：固定 DiLink 5 原厂深灰，不跟随系统深浅模式 -->
     <color name="ac_hud_bg">#D93A4048</color>
 </resources>

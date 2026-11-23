@@ -1,17 +1,25 @@
 # 灵手 · 公开版源码
 
-Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/音乐歌词）+ 双指空调。
+Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/音乐歌词）+ 三指空调。
 公开版包名 `com.byd.ls`，使用独立 release 签名。
 
 ## 版本
 
-- `versionCode 2695` / `versionName 1.5.2`
+- `versionCode 2696` / `versionName 1.5.3`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，保持与历史公开版一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
 
-## 1.5.2 全关即停修复
+## 1.5.3 三指空调与深浅跟随
+
+- 空调控制由双指改为三指：左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传。
+- `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。
+- 主界面与仪表卡片跟随车机系统 `uiMode` 切换深/浅色；空调 HUD 固定 DiLink 5 原厂深灰。
+- `AcFeature` 增加对象锁 + helper `flock` 单实例锁，避免 adblib 超时重试拉起多个 `ls-finger-touch`。
+- 验证：`assembleRelease` **BUILD SUCCESSFUL**；手势单测通过；`versionCode=2696`、`versionName=1.5.3`。
+
+## 1.5.2 全关即停修复（历史）
 
 - 卡片总开关新增跨进程 flag：私有 `filesDir/ls_card_any.flag`，公共 `/sdcard/clusterlab_card_any.txt`；`:guard` 与 shell 看门狗都读它。
 - 全关后 `ClusterCardKeeper.heal()` 直接跳过；shell 看门狗 `ensure_card()` 在 `flag=0` 时不再 `am start-activity`，不再反复拉起空 `CardActivity`。
@@ -44,7 +52,7 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 
 - 仪表媒体恢复：启动后循环重绑通知监听，`ClusterCardKeeper` 的媒体修复节拍缩短到 2 分钟。
 - 歌词冷启动：繁体歌名归一化为简体再搜，清掉旧版误写的 `.lrc.miss` 负缓存。
-- 双指空调 HUD：固定原厂深灰，不跟随系统日/夜模式。
+- 空调 HUD：固定原厂深灰，不跟随系统日/夜模式。
 
 ## 构建
 
@@ -79,6 +87,7 @@ app/src/main/java/com/byd/ls/
 └── util/         LsLog
 app/src/main/cpp/ lsguard.cpp
 assets/           car_top.webp、ls-watchdog.sh、ls-helper.apk、finger-touch
+helper-native/    finger-touch 源码与构建说明
 tools/            构建脚本
 ```
 

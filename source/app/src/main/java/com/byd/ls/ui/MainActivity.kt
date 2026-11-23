@@ -529,7 +529,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // =====================================================================
-    //  双指空调开关（beta6）
+    //  三指空调开关（beta6）
     // =====================================================================
     private fun bindAcSwitch() {
         suppress = true
@@ -549,9 +549,9 @@ class MainActivity : AppCompatActivity() {
             GesturePrefs.acEnabled = checked
             if (checked) {
                 runCatching { GlobalGestureService.start(this) }
-                toast("双指空调已开启：左右滑=风量，上下滑=温度")
+                toast("三指空调已开启：左右滑=风量，上下滑=温度")
             } else {
-                toast("双指空调已关闭")
+                toast("三指空调已关闭")
             }
         }
     }

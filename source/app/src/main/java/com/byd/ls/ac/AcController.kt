@@ -4,7 +4,7 @@ import android.content.Context
 import com.byd.ls.shell.ShellManager
 
 /**
- * 双指空调控制器：风量/温度都走 BYD SDK 底层特征写入，不弹空调页。
+ * 三指空调控制器：风量/温度都走 BYD SDK 底层特征写入，不弹空调页。
  *
  * 沿用手指 App 已实车验证的口径：
  *  · 风量写 AC_WIND_LEVEL_SET + AC_CTRL_SOURCE_SET；

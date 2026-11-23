@@ -1,3 +1,14 @@
+## 1.5.3（versionCode 2696，2026-11-23）—— 三指空调
+
+- **版本**：`versionCode 2696` / `versionName 1.5.3`；包名 `com.byd.ls`，使用独立公开 release 签名。
+- **手势**：空调控制由双指改为三指，三指左右滑=风量、上下滑=温度；1/2/4 指不参与，2 指恢复透传。
+- **原生助手**：`finger-touch` 只在 `count >= 3` 时截断物理触摸并发送质心采样；源码见 `helper-native/`，包内资源 SHA 为 `22723deb…9abe`。
+- **应用层**：`AcFeature` 只在 `C,3` 亮 HUD；`GestureEngine.onSample` 只接受 3 指；设置页文案改「三指空调控制」。
+- **单实例**：`AcFeature` 的对象锁 + helper `flock` 锁，避免 adblib 超时重试拉起两个 `ls-finger-touch`。
+- **深浅**：主界面与仪表卡片跟随系统 `uiMode` 切深/浅；空调 HUD 固定 DiLink 5 原厂深灰。
+- **构建/验证**：JDK 17，`assembleRelease` **BUILD SUCCESSFUL**；手势单测 17/17 通过；`versionCode=2696`、`versionName=1.5.3`。
+- **产物**：`apk/lingshou-1.5.3.apk`，**1,532,943 B**，sha256 `ff50272f29613564373e08be77a6bb464ca0b7e398feb8c20f4a36052356ba85`。
+
 ## 1.5.2（versionCode 2695，2026-11-23）—— 公开版全关即停修复
 
 - **版本**：`versionCode 2695` / `versionName 1.5.2`；包名 `com.byd.ls`，仍使用独立公开 release 签名。

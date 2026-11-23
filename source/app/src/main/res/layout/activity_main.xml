@@ -159,7 +159,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="双指空调控制"
+                            android:text="三指空调控制"
                             android:textColor="@color/text_primary"
                             android:textSize="@dimen/text_body" />
 
@@ -168,7 +168,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="双指左右滑=风量，上下滑=温度；需全屏手势开启" />
+                            android:text="三指左右滑=风量，上下滑=温度；需全屏手势开启" />
                     </LinearLayout>
 
                     <Switch

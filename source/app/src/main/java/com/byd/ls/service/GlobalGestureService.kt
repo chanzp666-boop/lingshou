@@ -189,7 +189,7 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
         } else if (overlay.attached) {
             overlay.detach()
         }
-        // 双指空调跟着全屏手势服务走；开关变化无需重启服务。
+        // 三指空调跟着全屏手势服务走；开关变化无需重启服务。
         runCatching { AcFeature.setEnabled(applicationContext, enabled && GesturePrefs.acEnabled) }
         if (full) {
             LsLog.i(TAG, "配置已应用: enabled=$enabled " +

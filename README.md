@@ -2,31 +2,40 @@
 
 > **非商业许可**：本仓库采用 **PolyForm Noncommercial License 1.0.0**，仅允许个人学习、研究、测试等非商业用途；禁止销售、付费分发、商业产品/服务集成。商业使用需另行取得作者书面授权。完整条款见 [LICENSE](LICENSE)。
 
-DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/歌词）+ 双指空调控制。
+DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/歌词）+ 三指空调控制。
 单 APK，不改系统 App，不依赖 root/Shizuku；特权操作走内置 adblib → `127.0.0.1:5555` 的 uid 2000 shell。
 
 这是公开专用仓库，**只保留当前公开版**：
 
-- 公开包：`com.byd.ls` / `versionCode 2695` / `versionName 1.5.2`
+- 公开包：`com.byd.ls` / `versionCode 2696` / `versionName 1.5.3`
 - 公开版使用独立 release 证书签名
 
-> 首次安装直接安装 APK；已装 1.5.1 / 1.5.1.1 / 1.5.1.2 / 1.5.1.3 可直接升级到 1.5.2。
+> 首次安装直接安装 APK；已装 1.5.2 可直接升级到 1.5.3。
 
 ## 下载
 
-- `apk/lingshou-1.5.2.apk` — 1.5.2 公开版
+- `apk/lingshou-1.5.3.apk` — 1.5.3 公开版
 - `apk/SHA256SUMS.txt` — APK 校验值
 
 | 项 | 值 |
 |---|---|
 | 包名 | `com.byd.ls` |
-| versionCode / versionName | `2695` / `1.5.2` |
-| 大小 | 1,532,963 B |
-| SHA-256 | `3420d2facf48ae6f5b209e39840486df811f233f888a959e5f246c7c4eb2fa70` |
+| versionCode / versionName | `2696` / `1.5.3` |
+| 大小 | 1,532,943 B |
+| SHA-256 | `ff50272f29613564373e08be77a6bb464ca0b7e398feb8c20f4a36052356ba85` |
 | 签名 | 独立公开 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭，不包含 relay 地址、bootstrap、operator token |
 
-## 1.5.2 全关即停修复
+## 1.5.3 三指空调与深浅跟随
+
+- 空调控制由双指改为三指：三指左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传，地图/图片双指缩放不再被空调截断。
+- `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。
+- 主界面与仪表卡片继续跟随车机系统 `uiMode` 切换深/浅色；空调 HUD 固定 DiLink 5 原厂深灰，不随深浅模式变色。
+- `AcFeature` 增加对象锁 + helper `flock` 单实例锁，避免 adblib 超时重试拉起两个 `ls-finger-touch`。
+- 同一公开 release 签名，已装 1.5.2 可直接升级。
+- 构建验证：JDK 17，`assembleRelease` **BUILD SUCCESSFUL**；手势单测通过；APK `versionCode=2696`、`versionName=1.5.3`。
+
+## 1.5.2 全关即停修复（历史）
 
 - 卡片总开关新增跨进程 flag：私有 `filesDir/ls_card_any.flag`，公共 `/sdcard/clusterlab_card_any.txt`；`:guard` 与 shell 看门狗都读它，不再依赖各自进程里的旧 SP 缓存。
 - 全关后 `ClusterCardKeeper.heal()` 直接跳过；shell 看门狗 `ensure_card()` 在 `flag=0` 时不再执行 `am start-activity`，不再每 15s 反复拉起空 `CardActivity`。
@@ -62,11 +71,11 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 - 仪表媒体恢复：车机休眠/重启后主动重绑通知监听，缩短媒体修复节拍，封面与歌词不再长时间空白。
 - 歌词冷启动：繁体歌名按简体候选重试，清掉旧版误写的歌词负缓存，Apple Music 等繁体曲名也能命中。
-- 双指空调 HUD：固定原厂深灰配色，不再跟随系统日/夜模式变色。
+- 空调 HUD：固定原厂深灰配色，不再跟随系统日/夜模式变色。
 
 ## 功能与权限
 
-- 公开版手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑与历史公开版一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加、1.5.2 的全关即停修复均已包含在当前包。
+- 公开版手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑与历史公开版一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加、1.5.2 的全关即停修复、1.5.3 的三指空调与 helper 单实例锁均已包含在当前包。
 - 远程调试固定关闭：`RemoteConfig` 在公开构建中恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - 已移除 `com.byd.ls.action.RPC` 广播入口，不能通过广播调用 `RemoteRpc`。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`，保持与历史公开版一致，减少 OEM 后台策略差异。

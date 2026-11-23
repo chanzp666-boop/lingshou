@@ -20,7 +20,7 @@ object GesturePrefs {
     private const val FILE = "ls_gesture_prefs"
 
     const val KEY_ENABLED = "gesture_enabled"
-    /** 双指空调开关（beta6）：与全屏手势服务同生命周期 */
+    /** 三指空调开关（beta6，2026-11-22 改三指）：与全屏手势服务同生命周期 */
     const val KEY_AC_ENABLED = "ac_enabled"
     const val KEY_EDGE_LEFT_DP = "edge_width_left_dp"
     const val KEY_EDGE_RIGHT_DP = "edge_width_right_dp"
@@ -98,14 +98,14 @@ object GesturePrefs {
         get() = sp.getBoolean(KEY_ENABLED, false)
         set(v) { sp.edit().putBoolean(KEY_ENABLED, v).apply() }
 
-    /** 双指空调：默认关，必须在全屏手势开启时才有意义 */
+    /** 三指空调：默认关，必须在全屏手势开启时才有意义 */
     var acEnabled: Boolean
         get() = sp.getBoolean(KEY_AC_ENABLED, false)
         set(v) { sp.edit().putBoolean(KEY_AC_ENABLED, v).apply() }
 
     // ==== 1.4.59：卡片元素开关与偏移（1.4.163：当前位置已吸收进绘制基准，偏移默认 0）====
-    // 1.5.2：卡片开关改 commit() 同步落盘。全关后进程若被系统/看门狗杀掉，
-    // 重启时必须仍是“关”；apply() 的异步写可能丢失，MainActivity.onCreate 会把旧值又写成 flag=1。
+    // 卡片开关用 commit() 同步落盘：全关后进程若被系统/看门狗杀掉，重启时必须仍是“关”，
+    // 不能让 apply() 的异步写丢失，否则 MainActivity.onCreate 会把旧值又写成 flag=1。
     var showOil: Boolean
         get() = sp.getBoolean(KEY_SHOW_OIL, true)
         set(v) { sp.edit().putBoolean(KEY_SHOW_OIL, v).commit() }
@@ -204,7 +204,7 @@ object GesturePrefs {
     /** 仪表助理模块开关：默认关。默认值即"合并未启用"，不影响任何既有行为 */
     var clusterEnabled: Boolean
         get() = sp.getBoolean(KEY_CLUSTER_ENABLED, false)
-        // 与元素开关一致：总开关同步落盘，避免进程重启后把全关误写成开。
+        // 与元素开关一致：总开关也必须同步落盘，避免进程重启后把全关误写成开。
         set(v) { sp.edit().putBoolean(KEY_CLUSTER_ENABLED, v).commit() }
 
     /**

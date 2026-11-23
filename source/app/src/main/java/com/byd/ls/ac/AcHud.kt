@@ -21,7 +21,7 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 
 /**
- * DiLink 5 双指空调浮层。
+ * DiLink 5 三指空调浮层。
  *
  * 资源尺寸来自 AirConditioning.apk：
  *  · 风量窗口 412x96dp，温度窗口 148x260dp，顶部 y=20dp；
@@ -59,7 +59,7 @@ object AcHud {
         wm = ctx.applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val ready = runCatching { Settings.canDrawOverlays(ctx.applicationContext) }.getOrDefault(false)
         Log.d(TAG, "init canDrawOverlays=$ready")
-        // 第一次手势才建视图会在主线程多花几十毫秒；提前建好，两指落下即可显示。
+        // 第一次手势才建视图会在主线程多花几十毫秒；提前建好，三指落下即可显示。
         if (ready) handler.post { ensureViews() }
         return ready
     }

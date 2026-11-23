@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
- * 双指空调功能层：ADB 通道 → 部署/拉起 shell 助手 → 读两指轨迹 → 写空调。
+ * 三指空调功能层：ADB 通道 → 部署/拉起 shell 助手 → 读三指轨迹 → 写空调。
  *
  * 生命周期跟 GlobalGestureService 同口径：手势服务在，它就按开关运行；
  * 助手断开/启动失败会自己退避重连，不依赖用户重新点开关。
@@ -27,6 +27,7 @@ object AcFeature {
 
     private const val TAG = "AcFeature"
     private const val HELPER = "/data/local/tmp/ls-finger-touch"
+    private const val HELPER_LOCK = "/data/local/tmp/ls-finger-touch.lock"
     private const val HELPER_ASSET = "finger-touch"
     private const val PART = "/data/local/tmp/ls-fh.part."
 
@@ -47,12 +48,14 @@ object AcFeature {
     @Volatile var status = "未启动"
         private set
 
+    @Synchronized
     fun setEnabled(ctx: Context, on: Boolean) {
         desired = on
         appCtx = ctx.applicationContext
         if (on) startAsync() else stop()
     }
 
+    @Synchronized
     private fun startAsync() {
         if (running || startJob?.isActive == true) return
         val ctx = appCtx ?: return
@@ -61,7 +64,7 @@ object AcFeature {
                 .getOrElse { "启动异常：${it.message ?: it.javaClass.simpleName}" }
             if (err == null && desired) {
                 running = true
-                status = "运行中（两指步进）"
+                status = "运行中（三指步进）"
                 startReader(ctx)
             } else if (!desired) {
                 status = "已停止"
@@ -95,8 +98,10 @@ object AcFeature {
 
         val uid = ctx.applicationInfo.uid
         ShellManager.exec(ctx, "kill -9 \$(pidof ls-finger-touch) 2>/dev/null", 3_000L)
-        val start = "( nohup $HELPER $uid $port </dev/null " +
-            ">/data/local/tmp/ls-finger-helper.log 2>&1 & ); sleep 1"
+        // adblib 的超时重试可能把同一条 start 命令执行两次；用 flock 让第二个助手立刻退出，
+        // 否则会出现两个 ls-finger-touch：一个 grab 成功、另一个只能只读，输入设备还会多一份。
+        val start = "( flock -n 9 || exit 0; nohup $HELPER $uid $port </dev/null " +
+            ">/data/local/tmp/ls-finger-helper.log 2>&1 & ) 9>'$HELPER_LOCK'; sleep 1"
         ShellManager.exec(ctx, start, 8_000L)
 
         status = "等待助手…"
@@ -147,8 +152,8 @@ object AcFeature {
                 when {
                     line.startsWith("C,") -> {
                         val count = line.substring(2).toIntOrNull() ?: continue
-                        if (count == 2) {
-                            // 两指刚落下就先亮 HUD，不能等位移过 96px 才出现。
+                        if (count == 3) {
+                            // 三指刚落下就先亮 HUD，不能等位移过 96px 才出现。
                             // 上一次手势是温度就沿用温度，否则默认风量；轴锁定后再刷新。
                             val initialKind = hudAxis ?: GestureEngine.Kind.WIND
                             hudAxis = null
@@ -170,7 +175,7 @@ object AcFeature {
                         val p = line.split(',')
                         val cx = p.getOrNull(1)?.toFloatOrNull() ?: continue
                         val cy = p.getOrNull(2)?.toFloatOrNull() ?: continue
-                        val step = engine.onSample(2, cx, cy, System.currentTimeMillis())
+                        val step = engine.onSample(3, cx, cy, System.currentTimeMillis())
                         val axis = engine.axisKind ?: continue
                         if (step == null) {
                             if (hudAxis != axis) {

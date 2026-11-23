@@ -1,7 +1,7 @@
 package com.byd.ls.ac
 
 /**
- * 两指手势状态机（纯逻辑，可单测）。自手指 0.1 实车验收版原样移植（beta6）。
+ * 三指手势状态机（纯逻辑，可单测）。自手指 0.1 实车验收版移植（beta6），2026-11-22 改三指。
  *
  * DiLink 5 手感：
  *  · 第一次触发后，档位边界逐次增加（96/198/306/420px），模拟阻尼；
@@ -9,7 +9,7 @@ package com.byd.ls.ac
  *  · 反向要越过当前档位边界并带回差，避免边界抖动；
  *  · 单次手势最多 5 档，避免长滑失控。
  *
- * 1 指/3 指不参与；左右=风量，上下=温度（上滑加温）。
+ * 1 指/2 指/4 指不参与；左右=风量，上下=温度（上滑加温）。
  */
 class GestureEngine(
     private val thresholdPx: Float = 96f,
@@ -54,7 +54,7 @@ class GestureEngine(
      * @param atMs 采样时间（毫秒，单调递增）
      */
     fun onSample(count: Int, cx: Float, cy: Float, atMs: Long): Step? {
-        if (count != 2) {
+        if (count != 3) {
             reset()
             return null
         }
