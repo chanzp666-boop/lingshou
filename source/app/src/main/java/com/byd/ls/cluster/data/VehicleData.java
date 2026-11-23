@@ -138,17 +138,14 @@ public class VehicleData {
             @Override public void run() {
                 try {
                     {
-                        // 胎压：1.4.46+ 原生 instrument 优先（INSTRUMENT_2IN1_*_TYRE_PRESSURE，kPa）；
-                        // 1.5.1.2 公开版对原生缺失/异常做迪加 HTTP 降级（仅公开仓，自用版不动）。
+                        // 胎压：迪加优先；5s 无完整返回才允许原生 FID/映射表；迪加锁死后不再读映射。
                         long nowP = android.os.SystemClock.elapsedRealtime();
+                        TyreSource.maybeFallback();
                         if (nowP - lastPressureAt >= 2000) {
                             lastPressureAt = nowP;
-                            int p0 = (int) nTyreLF, p1 = (int) nTyreRF, p2 = (int) nTyreLB, p3 = (int) nTyreRB;
-                            if (isPlausiblePressure(p0)) pressure[0] = p0;
-                            if (isPlausiblePressure(p1)) pressure[1] = p1;
-                            if (isPlausiblePressure(p2)) pressure[2] = p2;
-                            if (isPlausiblePressure(p3)) pressure[3] = p3;
+                            TyreSource.poll();
                         }
+                        applyTyreSource();
                     }
 
                     // 1.4.118 / 1.4.164：整表 fid 后台轮询（1 s 缓存）；ADAS 两条 fid 另有 300 ms 快通道。
@@ -165,7 +162,6 @@ public class VehicleData {
                     }
 
                     pollStats(ctx);
-                    applyDijiaTyreFallback();
                     // 电耗也走累计口径，不再混用迪加的行程值
                     ok = true;
                     long nowApi = System.currentTimeMillis();
@@ -238,10 +234,13 @@ public class VehicleData {
                     + " socSave=" + s.value("socSaveMode") + " susp=" + s.value("suspensionMode"));
         }
         double v;
-        v = s.value("tirePressFL"); if (!Double.isNaN(v) && v > 0) { nTyreLF = v; if (isPlausiblePressure(v)) pressure[0] = (int) v; }
-        v = s.value("tirePressFR"); if (!Double.isNaN(v) && v > 0) { nTyreRF = v; if (isPlausiblePressure(v)) pressure[1] = (int) v; }
-        v = s.value("tirePressRL"); if (!Double.isNaN(v) && v > 0) { nTyreLB = v; if (isPlausiblePressure(v)) pressure[2] = (int) v; }
-        v = s.value("tirePressRR"); if (!Double.isNaN(v) && v > 0) { nTyreRB = v; if (isPlausiblePressure(v)) pressure[3] = (int) v; }
+        // 胎压四轮只能有一个源：迪加锁定后，FID 映射表这条线一律不写。
+        if (TyreSource.mappingAllowed()) {
+            v = s.value("tirePressFL"); if (!Double.isNaN(v) && v > 0) { nTyreLF = v; if (isPlausiblePressure(v)) pressure[0] = (int) v; }
+            v = s.value("tirePressFR"); if (!Double.isNaN(v) && v > 0) { nTyreRF = v; if (isPlausiblePressure(v)) pressure[1] = (int) v; }
+            v = s.value("tirePressRL"); if (!Double.isNaN(v) && v > 0) { nTyreLB = v; if (isPlausiblePressure(v)) pressure[2] = (int) v; }
+            v = s.value("tirePressRR"); if (!Double.isNaN(v) && v > 0) { nTyreRB = v; if (isPlausiblePressure(v)) pressure[3] = (int) v; }
+        }
         // 1.4.119：综合油耗直读（50km 等效，仪表口径）。没有偏置、没有电耗折算 —— 车机给什么就是什么。
         v = s.value("fuelConsumption");
         if (!Double.isNaN(v) && v > 0.05 && v < 60) { nFuelPHM = v; totalPHM = v; }
@@ -556,40 +555,30 @@ public class VehicleData {
         return true;
     }
 
-    /** 公开版 1.5.1.2：只把 >0 且不超过 500 kPa 的值当有效胎压，4094 等哨兵值也走降级。 */
+    /** 公开版：只把 >0 且不超过 500 kPa 的值当有效胎压，4094 等哨兵值也走降级。 */
     private static boolean isPlausiblePressure(double v) {
         return v > 0 && v <= 500;
     }
 
-    private static long lastDijiaTyreLogAt = 0L;
-
     /**
-     * 原生四轮不全时，从迪加本地 HTTP 补缺失轮位；不覆盖已经有效的原生值。
-     * 迪加未装 / 8988 未开 / 超时 / 返回失败时 read() 返回 null 或 -1，这里静默保持原值。
+     * 把仲裁后的胎压源落到显示字段。
+     * 迪加锁定后只抄迪加；映射表仅在 5s 超时后写，且迪加一旦成功就不再写。
      */
-    private static void applyDijiaTyreFallback() {
-        if (isPlausiblePressure(nTyreLF) && isPlausiblePressure(nTyreRF)
-                && isPlausiblePressure(nTyreLB) && isPlausiblePressure(nTyreRB)) {
+    private static void applyTyreSource() {
+        if (TyreSource.dijiaLocked()) {
+            int[] v = TyreSource.current();
+            if (TyreSource.complete(v)) {
+                nTyreLF = v[0]; nTyreRF = v[1]; nTyreLB = v[2]; nTyreRB = v[3];
+                pressure[0] = v[0]; pressure[1] = v[1]; pressure[2] = v[2]; pressure[3] = v[3];
+            }
             return;
         }
-        int[] p = DijiaTyreSource.read();
-        if (p == null) return;
-        boolean used = false;
-        if (!isPlausiblePressure(nTyreLF) && isPlausiblePressure(p[0])) { nTyreLF = p[0]; used = true; }
-        if (!isPlausiblePressure(nTyreRF) && isPlausiblePressure(p[1])) { nTyreRF = p[1]; used = true; }
-        if (!isPlausiblePressure(nTyreLB) && isPlausiblePressure(p[2])) { nTyreLB = p[2]; used = true; }
-        if (!isPlausiblePressure(nTyreRB) && isPlausiblePressure(p[3])) { nTyreRB = p[3]; used = true; }
-        if (used) {
-            pressure[0] = (int) nTyreLF;
-            pressure[1] = (int) nTyreRF;
-            pressure[2] = (int) nTyreLB;
-            pressure[3] = (int) nTyreRB;
-            long now = android.os.SystemClock.elapsedRealtime();
-            if (now - lastDijiaTyreLogAt >= 30_000L) {
-                lastDijiaTyreLogAt = now;
-                ClusterDebug.e("CLUSTERLAB", "dijia tyre fallback p=" + pressure[0]
-                        + "/" + pressure[1] + "/" + pressure[2] + "/" + pressure[3]);
-            }
+        if (TyreSource.mappingAllowed()) {
+            // 映射表/原生事件只更新 nTyre，这里补 pressure，保证两个显示字段同源。
+            if (isPlausiblePressure(nTyreLF)) pressure[0] = (int) nTyreLF;
+            if (isPlausiblePressure(nTyreRF)) pressure[1] = (int) nTyreRF;
+            if (isPlausiblePressure(nTyreLB)) pressure[2] = (int) nTyreLB;
+            if (isPlausiblePressure(nTyreRB)) pressure[3] = (int) nTyreRB;
         }
     }
 
@@ -667,10 +656,9 @@ public class VehicleData {
                 double v;
                 try { v = Double.parseDouble(line.substring(eq + 1).trim()); } catch (Throwable t) { continue; }
                 if (v <= 0) continue;
-                if ("tyreLF".equals(k)) nTyreLF = v;
-                else if ("tyreRF".equals(k)) nTyreRF = v;
-                else if ("tyreLB".equals(k)) nTyreLB = v;
-                else if ("tyreRB".equals(k)) nTyreRB = v;
+                // 胎压不走旧快照恢复：旧快照可能是原生映射表口径（部分车型四轮全错），
+                // 先由 TyreSource 在迪加/映射之间选定唯一数据源，避免开机先亮错值。
+                if ("tyreLF".equals(k) || "tyreRF".equals(k) || "tyreLB".equals(k) || "tyreRB".equals(k)) continue;
                 else if ("fuel".equals(k) && Double.isNaN(nFuelPHM)) { nFuelPHM = v; totalPHM = v; }
                 else if ("elec".equals(k) && Double.isNaN(nElecPHM)) { nElecPHM = v; elecPHM = v; }
             }
@@ -724,10 +712,10 @@ public class VehicleData {
             // 该事件是 tyre 设备的 dval（29.0/30.0，×10 后 290/300），与 instrument 的 LF
             // （1246781456，245/290 kPa）抢同一个字段 → 左上胎压忽大忽小，用户实测为「错的」。
             // 轮位一律只认 instrument 的四个 id（INSTRUMENT_2IN1_*_TYRE_PRESSURE，kPa）。
-            case 1246781456: nTyreLF = raw; break;                      // INSTRUMENT LF TYRE PRESSURE (kPa)
-            case 1246781468: nTyreRF = raw; break;
-            case 1246781480: nTyreLB = raw; break;
-            case 1246781492: nTyreRB = raw; break;
+            case 1246781456: if (TyreSource.mappingAllowed()) nTyreLF = raw; break; // INSTRUMENT LF TYRE PRESSURE (kPa)
+            case 1246781468: if (TyreSource.mappingAllowed()) nTyreRF = raw; break;
+            case 1246781480: if (TyreSource.mappingAllowed()) nTyreLB = raw; break;
+            case 1246781492: if (TyreSource.mappingAllowed()) nTyreRB = raw; break;
             case 1147142160: if (raw > 0) nLowVolt = raw / 10.0; break; // LOWEST_BATTERY_VOLTAGE
             case 1147142192: if (raw > 0) nHighVolt = raw / 10.0; break;
             case 1151336480: nCurrent = raw / 10.0; break;             // INSTANTANEOUS_CURRENT

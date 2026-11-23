@@ -1,13 +1,13 @@
 # 源码快照说明
 
-本目录是 **灵手 1.5.1.2 公开版（versionCode 2693 / versionName 1.5.1.2）** 的源码快照，
+本目录是 **灵手 1.5.1.3 公开版（versionCode 2694 / versionName 1.5.1.3）** 的源码快照，
 包名 `com.byd.ls`，与自用版同包名，但使用独立 release 签名，不能共存。
 
 ## 与发布包的关系
 
-- 根目录 `apk/lingshou-1.5.1.2.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
+- 根目录 `apk/lingshou-1.5.1.3.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
 - 源码使用独立公开 release 证书签名；证书与私钥不在仓库内。
-- 公开版不能覆盖自用版；安装前必须卸载旧的自用 `com.byd.ls`，应用数据会丢失。已装公开版 1.5.1 / 1.5.1.1 可直接覆盖升级。
+- 公开版不能覆盖自用版；安装前必须卸载旧的自用 `com.byd.ls`，应用数据会丢失。已装公开版 1.5.1 / 1.5.1.1 / 1.5.1.2 可直接覆盖升级。
 
 ## 公开清理
 
@@ -20,7 +20,7 @@
 
 新增：
 
-- `app/src/main/java/com/byd/ls/cluster/data/DijiaTyreSource.java`：公开版胎压降级，原生四轮不全时读本机 `127.0.0.1:8988`，无外部地址、无凭据。
+- `app/src/main/java/com/byd/ls/cluster/data/TyreSource.java`：公开版胎压单一数据源仲裁，优先读本机 `127.0.0.1:8988`，无外部地址、无凭据。
 
 保留：
 

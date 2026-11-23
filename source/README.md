@@ -5,11 +5,19 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 
 ## 版本
 
-- `versionCode 2693` / `versionName 1.5.1.2`
+- `versionCode 2694` / `versionName 1.5.1.3`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，与自用版保持一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
+
+## 1.5.1.3 胎压优先迪加
+
+- 四轮优先读迪加本地 HTTP `127.0.0.1:8988/api/getVal`；启动后给 5 秒完整四轮返回窗口，四轮全部有效即锁定为唯一数据源。
+- 锁定后原生 FID/instrument 胎压映射不再写入四轮；迪加临时失败保留最后一次迪加值，不回退映射。
+- 5 秒内没有完整四轮才允许原生映射写入；迪加稍后返回完整四轮会立即切回并锁定。半套数据不锁定。
+- 4 轮并发、单条 800ms 超时、2 秒节拍；兼容 kPa 与 bar（2.45 → 245 kPa）。
+- 仅公开仓改动；自用版 1.5.3beta2（276）未改动。Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
 
 ## 1.5.1.2 胎压降级
 

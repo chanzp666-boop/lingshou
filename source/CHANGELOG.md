@@ -1,3 +1,14 @@
+## 1.5.1.3（versionCode 2694，2026-11-23）—— 公开版胎压优先迪加
+
+- **版本**：`versionCode 2694` / `versionName 1.5.1.3`；包名 `com.byd.ls`，仍使用独立公开 release 签名。
+- **胎压单一源**：新增 `TyreSource` 仲裁。迪加 `127.0.0.1:8988/api/getVal` 四轮并发读取，四轮全部有效即锁定；5 秒内无完整四轮才允许原生 FID/instrument 映射写入。
+- **锁定后**：原生 `applyFidSnapshot`、instrument 事件、旧快照都不再写胎压；迪加临时失败保留最后一次迪加值，不回退映射。
+- **冷启动**：不从 `last-values.txt` 恢复胎压，避免先亮旧映射错值；油耗/电耗恢复不变。
+- **网络**：4 轮并发，连接/读取各 800ms，2 秒节拍；全部走本机回环，无公网流量。
+- **边界**：半套数据不锁定；迪加未装/8988 未开/超时静默走原生映射；自用版 1.5.3beta2（276）未改动。
+- **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**154 tests / 0 failures / 0 errors / 2 skipped**；新增 `TyreSourceTest` 2 项。
+- **产物**：`apk/lingshou-1.5.1.3.apk`，**1,532,823 B**，sha256 `8c9fdac171a7bbb9bd379fb1c2bbcff30a43d8b4e7619685a359ffae4ce88f67`。
+
 ## 1.5.1.2（versionCode 2693，2026-11-22）—— 公开版胎压降级
 
 - **版本**：`versionCode 2693` / `versionName 1.5.1.2`；包名 `com.byd.ls`，仍使用独立公开 release 签名。

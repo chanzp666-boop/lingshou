@@ -1,6 +1,7 @@
 package com.byd.ls.cluster.data
 
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -14,6 +15,12 @@ import org.junit.Test
  *  - tyre 设备的 1020264488（dval 28~30）**不绑轮位**（曾把左前顶成 290/300，用户实测为错）
  */
 class VehicleDataEventsTest {
+
+    @Before
+    fun setUp() {
+        // 本测试只验证 FID/instrument 映射解析；跳过 5s 迪加等待，模拟映射表已放行。
+        TyreSource.forceMappingForTest()
+    }
 
     private val realLines = """
         statistic event=1246765072 value=486153 dval=0.0
