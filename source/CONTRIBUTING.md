@@ -12,7 +12,7 @@
 
 - `feat(scope): …` / `fix(scope): …` / `chore(vX.Y.Z): 出 release（字节数 / sha256 前缀）并登记产物`
 - 出正式包一律 `./tools/build.sh testReleaseUnitTest assembleRelease`，产物登记到 `apk/SHA256SUMS.txt` 与发布记录。
-- 公开版固定包名 `com.byd.ls`，与自用版同包名但必须使用独立 release 签名；不得复用自用包 debug 签名。
+- 公开版固定包名 `com.byd.ls`，必须使用独立 release 签名；不得复用 debug 签名。
 - 公开版运行时包名引用必须保持 `com.byd.ls`；不要再引入 `.public` 或其他包名，否则 ADB 授权、无障碍和仪表卡片会失效。
 
 ## 迭代卫生

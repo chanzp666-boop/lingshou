@@ -1,15 +1,23 @@
 # 灵手 · 公开版源码
 
 Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/音乐歌词）+ 双指空调。
-公开版包名 `com.byd.ls`，与自用版同包名，但使用独立 release 签名，不能共存。
+公开版包名 `com.byd.ls`，使用独立 release 签名。
 
 ## 版本
 
-- `versionCode 2694` / `versionName 1.5.1.3`
+- `versionCode 2695` / `versionName 1.5.2`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
-- 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，与自用版保持一致。
+- 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，保持与历史公开版一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
+
+## 1.5.2 全关即停修复
+
+- 卡片总开关新增跨进程 flag：私有 `filesDir/ls_card_any.flag`，公共 `/sdcard/clusterlab_card_any.txt`；`:guard` 与 shell 看门狗都读它。
+- 全关后 `ClusterCardKeeper.heal()` 直接跳过；shell 看门狗 `ensure_card()` 在 `flag=0` 时不再 `am start-activity`，不再反复拉起空 `CardActivity`。
+- 卡片总开关与 5 个元素开关改为 `commit()` 同步落盘；进程切开关后被杀也不会把全关回滚成开。
+- 重开任一卡片功能：flag 变 1，`:guard` 与看门狗恢复卡片。
+- 构建验证：`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；159 tests / 0 failures / 0 errors / 2 skipped。
 
 ## 1.5.1.3 胎压优先迪加
 
@@ -17,13 +25,13 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 - 锁定后原生 FID/instrument 胎压映射不再写入四轮；迪加临时失败保留最后一次迪加值，不回退映射。
 - 5 秒内没有完整四轮才允许原生映射写入；迪加稍后返回完整四轮会立即切回并锁定。半套数据不锁定。
 - 4 轮并发、单条 800ms 超时、2 秒节拍；兼容 kPa 与 bar（2.45 → 245 kPa）。
-- 仅公开仓改动；自用版 1.5.3beta2（276）未改动。Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
+- Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
 
 ## 1.5.1.2 胎压降级
 
 - 原生 instrument 四轮不全/异常时，从迪加本地 HTTP `127.0.0.1:8988/api/getVal` 补缺失轮位；四轮原生都有效时不请求迪加。
 - 4 轮并发，成功 5s 刷新、失败 15s 退避；迪加未装、8988 未开、超时或返回失败时静默保持原生值。
-- 仅公开仓改动；自用版 1.5.1 未动。Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
+- Manifest 已有 `INTERNET` 与 `usesCleartextTraffic="true"`，无新增权限。
 
 ## 1.5.1.1 修复
 

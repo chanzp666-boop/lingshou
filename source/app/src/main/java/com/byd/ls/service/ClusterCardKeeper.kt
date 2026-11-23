@@ -91,6 +91,10 @@ object ClusterCardKeeper {
 
     /** 巡检入口：同步返回，真正的 shell 动作丢到后台线程（绝不能占住 :guard 主线程） */
     fun heal(ctx: Context, reason: String) {
+        if (!GesturePrefs.cardAnyFromDisk(ctx)) {
+            LsLog.i(TAG, "跳过（没有任何卡片功能）: " + reason)
+            return
+        }
         if (!GesturePrefs.clusterEnabled) {
             LsLog.i(TAG, "跳过（卡片开关关）: " + reason)
             return

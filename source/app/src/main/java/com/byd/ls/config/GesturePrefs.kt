@@ -12,7 +12,8 @@ import android.content.SharedPreferences
  *  - GlobalGestureService 通过 [registerListener] 监听同一个 SP 文件，
  *    回调里直接 applyConfig() 刷新悬浮条宽度 / 手势阈值，无需重启服务。
  *
- * 注意：SP 不跨进程，只有主进程读它；:guard 守护进程不需要配置。
+ * 注意：SP 不跨进程，主进程与 :guard 各自有缓存。卡片总开关这类跨进程
+ * 状态通过 filesDir 下的 flag 文件传递，避免 :guard 看到旧的“全开”配置。
  */
 object GesturePrefs {
 
@@ -103,21 +104,23 @@ object GesturePrefs {
         set(v) { sp.edit().putBoolean(KEY_AC_ENABLED, v).apply() }
 
     // ==== 1.4.59：卡片元素开关与偏移（1.4.163：当前位置已吸收进绘制基准，偏移默认 0）====
+    // 1.5.2：卡片开关改 commit() 同步落盘。全关后进程若被系统/看门狗杀掉，
+    // 重启时必须仍是“关”；apply() 的异步写可能丢失，MainActivity.onCreate 会把旧值又写成 flag=1。
     var showOil: Boolean
         get() = sp.getBoolean(KEY_SHOW_OIL, true)
-        set(v) { sp.edit().putBoolean(KEY_SHOW_OIL, v).apply() }
+        set(v) { sp.edit().putBoolean(KEY_SHOW_OIL, v).commit() }
     var showElec: Boolean
         get() = sp.getBoolean(KEY_SHOW_ELEC, true)
-        set(v) { sp.edit().putBoolean(KEY_SHOW_ELEC, v).apply() }
+        set(v) { sp.edit().putBoolean(KEY_SHOW_ELEC, v).commit() }
     var showTotal: Boolean
         get() = sp.getBoolean(KEY_SHOW_TOTAL, true)
-        set(v) { sp.edit().putBoolean(KEY_SHOW_TOTAL, v).apply() }
+        set(v) { sp.edit().putBoolean(KEY_SHOW_TOTAL, v).commit() }
     var showTyre: Boolean
         get() = sp.getBoolean(KEY_SHOW_TYRE, true)
-        set(v) { sp.edit().putBoolean(KEY_SHOW_TYRE, v).apply() }
+        set(v) { sp.edit().putBoolean(KEY_SHOW_TYRE, v).commit() }
     var showMusic: Boolean
         get() = sp.getBoolean(KEY_SHOW_MUSIC, true)
-        set(v) { sp.edit().putBoolean(KEY_SHOW_MUSIC, v).apply() }
+        set(v) { sp.edit().putBoolean(KEY_SHOW_MUSIC, v).commit() }
 
     var fuelDy: Int
         get() = sp.getInt(KEY_FUEL_DY, 0)
@@ -201,7 +204,8 @@ object GesturePrefs {
     /** 仪表助理模块开关：默认关。默认值即"合并未启用"，不影响任何既有行为 */
     var clusterEnabled: Boolean
         get() = sp.getBoolean(KEY_CLUSTER_ENABLED, false)
-        set(v) { sp.edit().putBoolean(KEY_CLUSTER_ENABLED, v).apply() }
+        // 与元素开关一致：总开关同步落盘，避免进程重启后把全关误写成开。
+        set(v) { sp.edit().putBoolean(KEY_CLUSTER_ENABLED, v).commit() }
 
     /**
      * 仪表屏"全屏导航优先"：开启后，检测到 display 1 上是高德在跑时卡片让位。
@@ -234,6 +238,12 @@ object GesturePrefs {
     //  所以另写一个小标记文件，守护进程每轮巡检直接读磁盘。
     // ---------------------------------------------------------------------
     private const val ENABLED_FLAG_FILE = "ls_enabled.flag"
+    private const val CARD_ANY_FLAG_FILE = "ls_card_any.flag"
+    /**
+     * shell 看门狗（UID 2000）读不到 App 私有目录，必须再落一份到 /sdcard。
+     * 两份内容始终一致；Java :guard 优先读私有文件，读不到再回退到公共文件。
+     */
+    private const val CARD_ANY_PUBLIC_FILE = "/sdcard/clusterlab_card_any.txt"
 
     /** 主进程在开关变化时调用 */
     fun writeEnabledFlag(ctx: Context) {
@@ -241,6 +251,32 @@ object GesturePrefs {
             java.io.File(ctx.filesDir, ENABLED_FLAG_FILE).writeText(if (enabled) "1" else "0")
         }
     }
+
+    /** 主进程在卡片总开关变化时调用；:guard 与 shell 看门狗读这个值，不依赖跨进程 SP 缓存 */
+    fun writeCardFlag(ctx: Context) {
+        val any = clusterEnabled &&
+            (showOil || showElec || showTotal || showTyre || showMusic)
+        val value = if (any) "1" else "0"
+        runCatching {
+            java.io.File(ctx.filesDir, CARD_ANY_FLAG_FILE).writeText(value)
+        }
+        // 独立落一份给 shell 看门狗；/sdcard 写失败不影响 :guard 的私有文件。
+        runCatching {
+            java.io.File(CARD_ANY_PUBLIC_FILE).writeText(value)
+        }
+    }
+
+    /** 其它进程（:guard）用这个判断；私有/公共文件都不存在时按“有卡片”处理，保持旧自愈行为 */
+    fun cardAnyFromDisk(ctx: Context): Boolean = runCatching {
+        val privateFile = java.io.File(ctx.filesDir, CARD_ANY_FLAG_FILE)
+        val publicFile = java.io.File(CARD_ANY_PUBLIC_FILE)
+        val file = when {
+            privateFile.exists() -> privateFile
+            publicFile.exists() -> publicFile
+            else -> return@runCatching true
+        }
+        file.readText().trim() == "1"
+    }.getOrElse { true }
 
     /** 其它进程（:guard）用这个判断，读不到文件时退回本进程的 SP 值 */
     fun enabledFromDisk(ctx: Context): Boolean = runCatching {

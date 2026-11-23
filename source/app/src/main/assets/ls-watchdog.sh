@@ -24,6 +24,7 @@ TICK=$PKG.cluster.TICK
 RESTART=$PKG.action.RESTART
 RESTARTRX=$PKG/$PKG.receiver.RestartReceiver
 CARD=$PKG/$PKG.cluster.ui.CardActivity
+CARD_FLAG=/sdcard/clusterlab_card_any.txt      # App 主进程写的卡片总开关，0=全关
 NLS=$PKG/$PKG.cluster.data.MediaListener
 LOG=/data/local/tmp/ls-watchdog.log
 PIDFILE=/data/local/tmp/ls-watchdog.pid
@@ -126,6 +127,9 @@ ensure_gesture() {
 ensure_card() {
   alive || return 0
   in_boot_guard && return 0
+  # 全关后 App 仍有主进程和手势服务，但仪表卡片不能存在；flag=0 时直接跳过，
+  # 否则每轮巡检都会把空 CardActivity 反复拉起来。
+  [ "$(cat "$CARD_FLAG" 2>/dev/null)" = "0" ] && return 0
   # 与 Card.CHECK_WIN 同一口径：只数窗口行，避免 dumpsys 其它段落提到类名造成误判
   n=$(dumpsys window windows 2>/dev/null | grep "Window #" | grep -c "cluster.ui.CardActivity")
   [ "$n" -gt 0 ] && return 0

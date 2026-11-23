@@ -79,6 +79,7 @@ class MainActivity : AppCompatActivity() {
         bindLog()
         bindBydLog()
         bindCluster()
+        GesturePrefs.writeCardFlag(application)
         bindActions()
         bindRemoteDebug()
 
@@ -326,7 +327,10 @@ class MainActivity : AppCompatActivity() {
         row.addView(tv, android.widget.LinearLayout.LayoutParams(0, -1, 1f))
         val sw = android.widget.Switch(this)
         sw.isChecked = checked
-        sw.setOnCheckedChangeListener { _, v -> onChange(v) }
+        sw.setOnCheckedChangeListener { _, v ->
+            onChange(v)
+            GesturePrefs.writeCardFlag(this)
+        }
         row.addView(sw)
         return row
     }
@@ -354,7 +358,10 @@ class MainActivity : AppCompatActivity() {
         row.addView(tv, android.widget.LinearLayout.LayoutParams(0, -1, 1f))
         val sw = android.widget.Switch(this)
         sw.isChecked = checked
-        sw.setOnCheckedChangeListener { _, v -> onChange(v) }
+        sw.setOnCheckedChangeListener { _, v ->
+            onChange(v)
+            GesturePrefs.writeCardFlag(this)
+        }
         row.addView(sw)
         return row
     }
@@ -772,6 +779,7 @@ class MainActivity : AppCompatActivity() {
     private fun bindCluster() {
         b.btnCardStart.setOnClickListener {
             GesturePrefs.clusterEnabled = true
+            GesturePrefs.writeCardFlag(this)
             b.tvCardStatus.text = "卡片：正在拉起…"
             lifecycleScope.launch {
                 val msg = withContext(Dispatchers.IO) {
@@ -785,6 +793,7 @@ class MainActivity : AppCompatActivity() {
 
         b.btnCardStop.setOnClickListener {
             GesturePrefs.clusterEnabled = false
+            GesturePrefs.writeCardFlag(this)
             val msg = runCatching { Card.stop() }.getOrElse { "失败：" + it.message }
             toast(msg)
             b.tvCardStatus.text = "卡片：已停止"

@@ -7,26 +7,33 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 这是公开专用仓库，**只保留当前公开版**：
 
-- 公开包：`com.byd.ls` / `versionCode 2694` / `versionName 1.5.1.3`
-- 公开版使用独立 release 证书签名，不能覆盖自用版，也不能与自用版共存
+- 公开包：`com.byd.ls` / `versionCode 2695` / `versionName 1.5.2`
+- 公开版使用独立 release 证书签名
 
-> **安装前必须卸载旧的 `com.byd.ls`（自用版）**。公开版与自用版签名不同，Android 会拒绝覆盖安装；卸载会清除应用数据。已装公开版 1.5.1 / 1.5.1.1 / 1.5.1.2 的可以直接覆盖升级到 1.5.1.3。
->
-> 如果车机上装过旧的 `com.byd.ls.public` 公开版，也要一并卸载；它是另一个包名，不会被新包覆盖。
+> 首次安装直接安装 APK；已装 1.5.1 / 1.5.1.1 / 1.5.1.2 / 1.5.1.3 可直接升级到 1.5.2。
 
 ## 下载
 
-- `apk/lingshou-1.5.1.3.apk` — 1.5.1.3 公开版
+- `apk/lingshou-1.5.2.apk` — 1.5.2 公开版
 - `apk/SHA256SUMS.txt` — APK 校验值
 
 | 项 | 值 |
 |---|---|
 | 包名 | `com.byd.ls` |
-| versionCode / versionName | `2694` / `1.5.1.3` |
-| 大小 | 1,532,823 B |
-| SHA-256 | `8c9fdac171a7bbb9bd379fb1c2bbcff30a43d8b4e7619685a359ffae4ce88f67` |
+| versionCode / versionName | `2695` / `1.5.2` |
+| 大小 | 1,532,963 B |
+| SHA-256 | `3420d2facf48ae6f5b209e39840486df811f233f888a959e5f246c7c4eb2fa70` |
 | 签名 | 独立公开 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭，不包含 relay 地址、bootstrap、operator token |
+
+## 1.5.2 全关即停修复
+
+- 卡片总开关新增跨进程 flag：私有 `filesDir/ls_card_any.flag`，公共 `/sdcard/clusterlab_card_any.txt`；`:guard` 与 shell 看门狗都读它，不再依赖各自进程里的旧 SP 缓存。
+- 全关后 `ClusterCardKeeper.heal()` 直接跳过；shell 看门狗 `ensure_card()` 在 `flag=0` 时不再执行 `am start-activity`，不再每 15s 反复拉起空 `CardActivity`。
+- 卡片总开关与 5 个元素开关改为 `commit()` 同步落盘；切完全关后进程被杀，重启也不会把“全关”回滚成“开”。
+- 重开任一卡片功能：flag 变 1，`:guard` 与看门狗恢复卡片；全关保持无 `CardActivity` 窗口。
+- 同一公开 release 签名，已装 1.5.1.3 可直接升级。
+- 构建验证：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**159 tests / 0 failures / 0 errors / 2 skipped**（新增 `CardFlagDiskTest` 5 项）。
 
 ## 1.5.1.3 胎压优先迪加
 
@@ -35,15 +42,14 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 - 5 秒内迪加没有返回完整四轮值时，才允许原生映射表写入；迪加稍后返回完整四轮会立即切回并锁定。
 - 迪加只返回 1–3 轮时不锁定，避免另外三轮长期空着；单位兼容 kPa，返回 bar 时自动 ×100。
 - 全程只走本机回环，不增加公网流量；迪加未安装/8988 未启动时静默走原生映射，不影响启动。
-- 仅改公开仓库；自用版 1.5.3beta2（276）未改动。仍是同一公开 release 签名，已装 1.5.1.2 可直接覆盖升级。
+- 同一公开 release 签名，已装 1.5.1.2 可直接升级。
 
 ## 1.5.1.2 胎压降级
 
 - 其他 BYD 车型的原生 instrument 四轮 ID 与本车不一致、读数缺失或异常时，自动从迪加本地 HTTP `127.0.0.1:8988` 的 `/api/getVal` 补缺失轮位。
 - 原生四轮都有效时不请求迪加；迪加只补缺，不覆盖正常原生值。
 - 迪加未安装、8988 未启动、超时或返回失败时静默保持原生值，不影响启动和现有功能。
-- 仅改公开仓库；自用版 1.5.1（versionCode 272）未改动。
-- 仍是同一公开 release 签名，已装 1.5.1 / 1.5.1.1 可直接覆盖升级。
+- 同一公开 release 签名，已装 1.5.1 / 1.5.1.1 可直接升级。
 
 ## 1.5.1.1 修复
 
@@ -60,10 +66,10 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 ## 功能与权限
 
-- 公开版与自用版同源，手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加只进入公开版，自用版未改动。
+- 公开版手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑与历史公开版一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加、1.5.2 的全关即停修复均已包含在当前包。
 - 远程调试固定关闭：`RemoteConfig` 在公开构建中恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - 已移除 `com.byd.ls.action.RPC` 广播入口，不能通过广播调用 `RemoteRpc`。
-- 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`，与自用版保持一致，减少 OEM 后台策略差异。
+- 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`，保持与历史公开版一致，减少 OEM 后台策略差异。
 - 一键 ADB 授权要求用户打开车机 ADB、确认 RSA；`WRITE_SECURE_SETTINGS`、`DUMP` 需要 ADB 授权后才能使用。
 - 公开包不含 relay 配置、设备 ID、bootstrap/operator/ngrok 凭据、签名私钥或口令。
 
@@ -92,7 +98,7 @@ source/     公开版 Gradle 工程
 CHANGELOG.md
 ```
 
-自用车机包、内部交接文档、远程 relay 工具不在此仓库。
+内部交接文档、远程 relay 工具不在此仓库。
 
 ## 许可协议
 

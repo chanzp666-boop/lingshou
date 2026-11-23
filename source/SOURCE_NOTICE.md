@@ -1,13 +1,13 @@
 # 源码快照说明
 
-本目录是 **灵手 1.5.1.3 公开版（versionCode 2694 / versionName 1.5.1.3）** 的源码快照，
-包名 `com.byd.ls`，与自用版同包名，但使用独立 release 签名，不能共存。
+本目录是 **灵手 1.5.2 公开版（versionCode 2695 / versionName 1.5.2）** 的源码快照，
+包名 `com.byd.ls`，使用独立 release 签名。
 
 ## 与发布包的关系
 
-- 根目录 `apk/lingshou-1.5.1.3.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
+- 根目录 `apk/lingshou-1.5.2.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
 - 源码使用独立公开 release 证书签名；证书与私钥不在仓库内。
-- 公开版不能覆盖自用版；安装前必须卸载旧的自用 `com.byd.ls`，应用数据会丢失。已装公开版 1.5.1 / 1.5.1.1 / 1.5.1.2 可直接覆盖升级。
+- 同一公开签名可直接升级；已装 1.5.1 / 1.5.1.1 / 1.5.1.2 / 1.5.1.3 可直接升级。
 
 ## 公开清理
 
@@ -39,7 +39,7 @@ export LS_PUBLIC_KEY_PASSWORD=...
 ./tools/build.sh clean testReleaseUnitTest assembleRelease
 ```
 
-需自备独立 release keystore；不要复用自用包的 debug 证书。
+需自备独立 release keystore；不要复用任何 debug 证书。
 
 ## 许可
 

@@ -15,7 +15,7 @@
 
     <!-- 前台服务 + 心跳保活 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- 保活/闹钟唤醒；与自用版保持一致，避免 OEM 后台策略差异 -->
+    <!-- 保活/闹钟唤醒；保持与历史公开版一致，避免 OEM 后台策略差异 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 

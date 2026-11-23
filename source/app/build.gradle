@@ -25,14 +25,14 @@ android {
     }
 
     defaultConfig {
-        // 公开版与自用版使用同一包名；两者不能共存，公开版只面向全新安装。
-        // 独立 release 签名与自用 debug 签名不同，无法覆盖安装。
+        // 公开版固定包名 com.byd.ls，使用独立 release 签名；不要把签名口令提交到仓库。
+        // 同一公开签名的历史版本可直接升级。
         applicationId "com.byd.ls"
         // DiLink 4.0 = Android 10 = API 29。min/target 都锁 29，避免高版本 API 误用。
         minSdk 29
         targetSdk 29
-        versionCode 2694
-        versionName "1.5.1.3"
+        versionCode 2695
+        versionName "1.5.2"
         buildConfigField "boolean", "PUBLIC_BUILD", "true"
 
         // 只保留车载实际用到的语言：appcompat/material 自带几十种语言的字符串，
