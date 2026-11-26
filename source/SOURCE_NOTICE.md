@@ -1,13 +1,13 @@
 # 源码快照说明
 
-本目录是 **灵手 1.5.2 公开版（versionCode 2695 / versionName 1.5.2）** 的源码快照，
+本目录是 **灵手 1.5.4.6 公开版（versionCode 2697 / versionName 1.5.4.6）** 的源码快照，
 包名 `com.byd.ls`，使用独立 release 签名。
 
 ## 与发布包的关系
 
-- 根目录 `apk/lingshou-1.5.2.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
+- 根目录 `apk/lingshou-1.5.4.6.apk` 由本源码构建；SHA256 见 `apk/SHA256SUMS.txt`。
 - 源码使用独立公开 release 证书签名；证书与私钥不在仓库内。
-- 同一公开签名可直接升级；已装 1.5.1 / 1.5.1.1 / 1.5.1.2 / 1.5.1.3 可直接升级。
+- 同一公开签名可直接升级；已装 1.5.1 / 1.5.1.1 / 1.5.1.2 / 1.5.1.3 / 1.5.2 / 1.5.3 可直接升级。
 
 ## 公开清理
 
@@ -20,6 +20,7 @@
 
 新增：
 
+- `app/src/main/java/com/byd/ls/cluster/FeatureGate.java`：1.5.3beta2 起的统一功能门控；关闭后停对应窗口/监听/轮询/线程/网络。
 - `app/src/main/java/com/byd/ls/cluster/data/TyreSource.java`：公开版胎压单一数据源仲裁，优先读本机 `127.0.0.1:8988`，无外部地址、无凭据。
 
 保留：

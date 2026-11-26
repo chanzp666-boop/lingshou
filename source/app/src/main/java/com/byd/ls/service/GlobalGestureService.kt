@@ -108,9 +108,10 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
         runCatching { startForeground(NOTIF_ID, buildNotification()) }
         when (intent?.action) {
             ACTION_STOP -> {
-                LsLog.i(TAG, "收到停止指令")
-                stopSelfSafely()
-                return START_NOT_STICKY
+                LsLog.i(TAG, "收到停止指令：只停手势功能，自愈守护保留")
+                GesturePrefs.enabled = false
+                applyConfig(full = true)
+                return START_STICKY
             }
             ACTION_APPLY_CONFIG -> {
                 applyConfig(full = true)
@@ -148,9 +149,7 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
         runCatching { overlay.detach() }
         guardConn?.let { runCatching { unbindService(it) } }
         guardConn = null
-        // 只有明确关闭手势时才取消心跳；服务被系统重建时保留心跳，
-        // 否则会失去最后一道 AlarmManager 兜底。
-        if (!GesturePrefs.enabled) HeartbeatReceiver.unschedule(applicationContext)
+        // 1.5.3beta2：服务死亡不代表功能关闭；心跳必须保留，否则休眠唤醒/自愈链会断。
         if (instance === this) setInstance(null)
         scope.cancel()
         super.onDestroy()
@@ -210,7 +209,7 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun onGesture(gesture: GestureRecognizer.Gesture) {
-        if (!GesturePrefs.enabled) return
+        if (!GesturePrefs.enabled || recognizer.blocked) return
         executor.fire(
             when (gesture) {
                 GestureRecognizer.Gesture.BACK -> KeyEventExecutor.Action.BACK
@@ -226,6 +225,40 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
     /** 输入法弹出 → 暂停底部上滑手势，防止与键盘冲突 */
     fun onImeVisible(visible: Boolean) {
         overlay.setBottomEnabled(!visible)
+    }
+
+    /** 前台包名变化：桌面/home 时整条全屏手势链路不工作，其他界面照常。 */
+    fun onForegroundPackage(pkg: String?) {
+        val home = isHomePackage(pkg)
+        if (recognizer.blocked == home) return
+        recognizer.blocked = home
+        overlay.setTouchable(!home)
+        LsLog.i(TAG, "前台包=$pkg 全屏手势${if (home) "暂停(桌面)" else "恢复"}")
+    }
+
+    private fun isHomePackage(pkg: String?): Boolean {
+        if (pkg.isNullOrEmpty()) return false
+        if (pkg in homePackages) return true
+        return runCatching {
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0
+            ).any { it.activityInfo.packageName == pkg }
+        }.getOrDefault(false)
+    }
+
+    private val homePackages: Set<String> by lazy {
+        val known = setOf(
+            "com.dy.launcher",
+            "com.byd.launcher",
+            "com.android.launcher3",
+            "com.android.home"
+        )
+        val resolved = runCatching {
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0
+            ).map { it.activityInfo.packageName }
+        }.getOrDefault(emptyList())
+        known + resolved
     }
 
     // =====================================================================
@@ -294,12 +327,6 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
             .build()
     }
 
-    private fun stopSelfSafely() {
-        DaemonGuard.stop(applicationContext)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-    }
-
     companion object {
         private const val TAG = "GestureSvc"
         private const val NOTIF_ID = 21
@@ -332,6 +359,7 @@ class GlobalGestureService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
 
         fun stop(ctx: Context) {
+            if (!isRunning()) return
             runCatching {
                 ctx.startService(
                     Intent(ctx, GlobalGestureService::class.java).setAction(ACTION_STOP)

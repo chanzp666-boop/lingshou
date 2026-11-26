@@ -33,6 +33,7 @@ class NavWindowBoostTest {
 
     @Test
     fun `nav window event boosts sampling, repeats are throttled`() {
+        NavState.setDemand(true)
         NavState.onNavWindow("com.autonavi.amapauto")
         assertTrue("导航窗口事件必须把探测提到 800ms 一轮", NavState.boostActive())
 

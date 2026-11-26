@@ -145,6 +145,7 @@ object HelperBridge {
     private const val NAV_HEARTBEAT = "/data/local/tmp/.nav_heartbeat"
     private const val NAV_REQUEST = "/data/local/tmp/.nav_request"
     private const val NAV_ACTIVE = "/data/local/tmp/.nav_active"
+    private const val NAV_PIXEL_MODE = "/data/local/tmp/.nav_pixel_mode"
     /** 同一时刻只允许一个 ensureNavWatch 进入“检查→拉起”临界区；
      *  navWatchFresh 在 helper 刚启动的前 1s 还不为真，并发调用会各起一条 ls-nav。 */
     private val navStartLock = java.util.concurrent.locks.ReentrantLock()
@@ -177,6 +178,17 @@ object HelperBridge {
         }.getOrNull()?.success == true
     }
 
+    /** 正常信号链路不截屏；只有信号失效才让 helper 进入像素兜底模式。 */
+    @JvmStatic
+    fun setNavPixelMode(ctx: Context, active: Boolean): Boolean = runBlocking {
+        if (!ShellManager.isPrivileged()) return@runBlocking false
+        val cmd = if (active) "touch $NAV_PIXEL_MODE"
+        else "rm -f $NAV_PIXEL_MODE $NAV_ACTIVE"
+        runCatching {
+            ShellManager.exec(ctx, cmd, 4_000L)
+        }.getOrNull()?.success == true
+    }
+
     /** 拉起（或复用）连续采集进程：一次 adb 调用，之后采样全程不占 adbd。 */
     @JvmStatic
     fun ensureNavWatch(ctx: Context): Boolean = runBlocking {
@@ -195,7 +207,9 @@ object HelperBridge {
         // 所以把所有 shell 语法收进设备上的一份脚本，app 只负责「写脚本 + 跑脚本」。
         val script = "/data/local/tmp/lswatch.sh"
         val body = "#!/system/bin/sh\n" +
-            "pkill -f \"nice-name=$NAV_PROC\"\n" +
+            // 旧 helper 的 cmdline 就是 `ls-nav`（--nice-name 已经把 argv 替换掉），
+            // 用 nice-name=... 匹配不到它，会越拉越多；按完整进程名精确杀。
+            "pkill -f '^ls-nav\$'\n" +
             "sleep 1\n" +
             "nohup env CLASSPATH=$TMP_DEX app_process /system/bin --nice-name=$NAV_PROC" +
             " com.byd.ls.helper.HelperMain --navwatch ${ctx.packageName}" +

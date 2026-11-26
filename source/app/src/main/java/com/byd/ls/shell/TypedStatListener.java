@@ -26,6 +26,11 @@ public final class TypedStatListener extends AbsBYDAutoStatisticListener {
 
     private static volatile Sink sink;
 
+    private static BYDAutoStatisticDevice statDev;
+    private static TypedStatListener statListener;
+    private static BYDAutoTyreDevice tyreDev;
+    private static AbsBYDAutoTyreListener tyreListener;
+
     public static void setSink(Sink s) { sink = s; }
 
     private static void rec(String k, Object v) {
@@ -73,11 +78,15 @@ public final class TypedStatListener extends AbsBYDAutoStatisticListener {
     @Override public void onError(int code, String msg) { rec("error", code + ":" + msg); }
 
     /** 在 App 进程内注册（与迪友同一路径：getInstance + registerListener）。 */
-    public static String attach(Context ctx) {
+    public static synchronized String attach(Context ctx) {
+        if (statListener != null) return "statistic=ok";
         try {
             BYDAutoStatisticDevice dev = BYDAutoStatisticDevice.getInstance(ctx);
             if (dev == null) return "statistic=null";
-            dev.registerListener(new TypedStatListener());
+            TypedStatListener l = new TypedStatListener();
+            dev.registerListener(l);
+            statDev = dev;
+            statListener = l;
             return "statistic=ok";
         } catch (Throwable t) {
             return "statistic=ERR " + t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -85,11 +94,12 @@ public final class TypedStatListener extends AbsBYDAutoStatisticListener {
     }
 
     /** 胎压：迪友 a4.n 同样 getInstance + registerListener（另配 getTyrePressureValue(1..4)）。 */
-    public static String attachTyre(Context ctx) {
+    public static synchronized String attachTyre(Context ctx) {
+        if (tyreListener != null) return "tyre=ok";
         try {
             BYDAutoTyreDevice dev = BYDAutoTyreDevice.getInstance(ctx);
             if (dev == null) return "tyre=null";
-            dev.registerListener(new AbsBYDAutoTyreListener() {
+            AbsBYDAutoTyreListener l = new AbsBYDAutoTyreListener() {
                 @Override public void onDataChanged(IBYDAutoEvent event) {
                     try {
                         Object ev = event.getClass().getMethod("getEventType").invoke(event);
@@ -97,10 +107,28 @@ public final class TypedStatListener extends AbsBYDAutoStatisticListener {
                         rec("tyreRaw ev=" + ev + " v=" + v, v);
                     } catch (Throwable ignored) {}
                 }
-            });
+            };
+            dev.registerListener(l);
+            tyreDev = dev;
+            tyreListener = l;
             return "tyre=ok";
         } catch (Throwable t) {
             return "tyre=ERR " + t.getClass().getSimpleName() + ": " + t.getMessage();
         }
+    }
+
+    /** 1.5.3beta2：油耗/胎压全关时反注册，停止原生事件继续进入 App。 */
+    public static synchronized void detach() {
+        sink = null;
+        if (statDev != null && statListener != null) {
+            try { statDev.unregisterListener(statListener); } catch (Throwable ignored) {}
+        }
+        statDev = null;
+        statListener = null;
+        if (tyreDev != null && tyreListener != null) {
+            try { tyreDev.unregisterListener(tyreListener); } catch (Throwable ignored) {}
+        }
+        tyreDev = null;
+        tyreListener = null;
     }
 }

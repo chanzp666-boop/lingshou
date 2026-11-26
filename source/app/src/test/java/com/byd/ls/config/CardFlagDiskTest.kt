@@ -12,7 +12,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * 1.5.2：卡片总开关要跨进程传给 :guard。
+ * 1.5.3beta2 修正：卡片总开关要跨进程传给 :guard。
  *
  * SP 在每个进程各有一份缓存；这里锁“主进程写 0/1，guard 读同一个 0/1”，
  * 避免全关后 :guard 继续按旧的“全开”缓存反复拉起空 CardActivity。

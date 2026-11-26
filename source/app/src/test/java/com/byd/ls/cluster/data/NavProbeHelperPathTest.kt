@@ -1,7 +1,6 @@
 package com.byd.ls.cluster.data
 
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 
@@ -14,12 +13,17 @@ import java.io.File
  */
 class NavProbeHelperPathTest {
 
-    private fun helperSource(): String? {
+    private fun helperSource(): String {
         val candidates = listOf(
             File("../helper/src/com/byd/ls/helper/HelperMain.java"),
             File("helper/src/com/byd/ls/helper/HelperMain.java")
         )
-        return candidates.firstOrNull { it.exists() }?.readText()
+        val f = candidates.firstOrNull { it.exists() }
+        if (f == null) {
+            // 公开源码只发布运行时 ls-helper.apk，不包含 helper/src；该契约由发布机构建时校验。
+            org.junit.Assume.assumeTrue("公开源码不含 helper 源码，跳过源码契约测试", false)
+        }
+        return f!!.readText()
     }
 
     private fun probeRaw(): String {
@@ -31,8 +35,6 @@ class NavProbeHelperPathTest {
     @Test
     fun helperAndProbeShareSameRawFile() {
         val src = helperSource()
-        assumeTrue("公开源码不含 helper 源码，跳过", src != null)
-        src!!
         assertTrue("helper 里必须有 NAV_RAW 常量", src.contains("NAV_RAW"))
         assertTrue(
             "helper 的 NAV_RAW 必须等于 NavProbe.RAW，否则读到的是旧帧/空文件",
@@ -43,8 +45,6 @@ class NavProbeHelperPathTest {
     @Test
     fun helperExposesNavshotVerbOnDisplay1() {
         val src = helperSource()
-        assumeTrue("公开源码不含 helper 源码，跳过", src != null)
-        src!!
         assertTrue("socket 必须有 navshot 分支", src.contains("\"navshot\".equals(cmd.trim())"))
         assertTrue(
             "navshot 必须截 display 1（仪表屏），不是默认 display 0",

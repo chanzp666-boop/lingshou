@@ -47,6 +47,18 @@ class LsApp : Application() {
         installCrashHandler()
         GesturePrefs.init(this)
         LsLog.init(this)
+        // 1.5.3beta2：进程启动时就把媒体监听对齐；音乐/卡片关时不要等 NLS 自己醒。
+        runCatching {
+            com.byd.ls.cluster.data.MediaListener.setFeatureEnabled(
+                com.byd.ls.cluster.FeatureGate.card() && com.byd.ls.cluster.FeatureGate.music()
+            )
+        }
+        if (!com.byd.ls.cluster.FeatureGate.card() || !com.byd.ls.cluster.FeatureGate.vehicle()) {
+            runCatching { com.byd.ls.shell.FidDirect.stop() }
+        }
+        if (!com.byd.ls.cluster.FeatureGate.card() || !com.byd.ls.cluster.FeatureGate.vehicle()) {
+            runCatching { com.byd.ls.shell.BydDirect.unregisterStatisticListener() }
+        }
         // 1.4.138：投影补发需要 app ctx（卡片重建/导航开始两条路径都用它）
         runCatching { com.byd.ls.cluster.ClusterProjection.remember(this) }
         // 1.5.0-beta2：全屏导航下由 app 进程常驻兜底补 16（不依赖卡片 onResume，卡片未起也能保持）

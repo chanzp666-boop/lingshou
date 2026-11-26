@@ -2,6 +2,7 @@ package com.byd.ls.shell
 
 import android.content.Context
 import com.byd.ls.LsApp
+import com.byd.ls.cluster.FeatureGate
 import com.byd.ls.util.LsLog
 import kotlinx.coroutines.runBlocking
 import java.util.Locale
@@ -64,10 +65,12 @@ object FidDirect {
     private var appCtx: Context? = null
 
     @Volatile
-    private var started = false
+    private var running = false
 
     @Volatile
-    private var adasStarted = false
+    private var adasRunning = false
+    private var pollThread: Thread? = null
+    private var adasThread: Thread? = null
     @Volatile
     private var adasAt = 0L
     @Volatile
@@ -96,6 +99,7 @@ object FidDirect {
 
     @JvmStatic
     fun snapshot(): Snapshot? {
+        if (!FeatureGate.card() || !FeatureGate.vehicle()) return null
         start()
         return last
     }
@@ -111,8 +115,12 @@ object FidDirect {
     fun refresh(ctx: Context?, force: Boolean = false): Snapshot? {
         val c = ctx ?: LsApp.appContext()
         if (c != null && appCtx == null) appCtx = c.applicationContext
+        if (!FeatureGate.card() || !FeatureGate.vehicle()) {
+            stop()
+            return null
+        }
         start()
-        startAdas()
+        if (FeatureGate.tyre()) startAdas()
         if (force) {
             val t = Thread({ runCatching { pollOnce() } }, "LsFidOnce")
             t.isDaemon = true
@@ -121,41 +129,60 @@ object FidDirect {
         return last
     }
 
+    /** 1.5.3beta2：油耗/胎压全关时立即停两条 while(true) 线程。 */
+    @JvmStatic
+    fun stop() {
+        running = false
+        adasRunning = false
+        runCatching { pollThread?.interrupt() }
+        runCatching { adasThread?.interrupt() }
+        last = null
+        adasAt = 0L
+        adasSoc = Double.NaN
+        adasSusp = Double.NaN
+    }
+
     /**
      * 最近一次 ADAS 快照：`[socSaveMode, suspensionMode]`，任一无效为 NaN。
      * 超过 [ADAS_STALE_MS] 没更新就返回 null，调用方不覆盖已有状态。
      */
     @JvmStatic
     fun adasValues(): DoubleArray? {
+        if (!FeatureGate.card() || !FeatureGate.tyre()) return null
         val at = adasAt
         if (at == 0L || System.currentTimeMillis() - at > ADAS_STALE_MS) return null
         return doubleArrayOf(adasSoc, adasSusp)
     }
 
     private fun startAdas() {
-        if (adasStarted) return
+        if (!FeatureGate.card() || !FeatureGate.tyre() || adasRunning) return
         synchronized(this) {
-            if (adasStarted) return
-            adasStarted = true
+            if (!FeatureGate.card() || !FeatureGate.tyre() || adasRunning) return
+            adasRunning = true
             // 首次启动先给 5s 快档：冷启动/唤醒后尽快拿到第一版状态
             adasFastUntil = System.currentTimeMillis() + ADAS_FAST_HOLD_MS
             val t = Thread({
-                while (true) {
+                while (adasRunning && FeatureGate.card() && FeatureGate.tyre()) {
                     runCatching { pollAdasOnce() }.onFailure { LsLog.w(TAG, "adas poll: " + it.message) }
+                    if (!adasRunning) break
                     val sleep = if (System.currentTimeMillis() < adasFastUntil) ADAS_FAST_MS else ADAS_SLOW_MS
                     try {
                         Thread.sleep(sleep)
                     } catch (ignored: InterruptedException) {
+                        if (!adasRunning) break
                     }
                 }
+                adasRunning = false
+                adasThread = null
             }, "LsFidAdas")
+            adasThread = t
             t.isDaemon = true
             t.start()
         }
     }
 
     private fun pollAdasOnce() {
-        if (appCtx == null) return
+        if (!FeatureGate.card() || !FeatureGate.tyre() || appCtx == null) return
         val text = BydDirect.fidsTextApp(ADAS_SPEC).orEmpty()
         if (text.isEmpty() || text.startsWith("ERR")) return
         var soc = Double.NaN
@@ -184,25 +211,31 @@ object FidDirect {
     }
 
     private fun start() {
-        if (started) return
+        if (!FeatureGate.card() || !FeatureGate.vehicle() || running) return
         synchronized(this) {
-            if (started) return
-            started = true
+            if (!FeatureGate.card() || !FeatureGate.vehicle() || running) return
+            running = true
             val t = Thread({
-                while (true) {
+                while (running && FeatureGate.card() && FeatureGate.vehicle()) {
                     runCatching { pollOnce() }.onFailure { LsLog.w(TAG, "poll: " + it.message) }
+                    if (!running) break
                     try {
                         Thread.sleep(POLL_MS)
                     } catch (ignored: InterruptedException) {
+                        if (!running) break
                     }
                 }
+                running = false
+                pollThread = null
             }, "LsFidPoll")
+            pollThread = t
             t.isDaemon = true
             t.start()
         }
     }
 
     private fun pollOnce() {
+        if (!FeatureGate.card() || !FeatureGate.vehicle()) return
         val ctx = appCtx ?: return
         val prev = last
         if (prev != null && System.currentTimeMillis() - prev.at < CACHE_MS) return

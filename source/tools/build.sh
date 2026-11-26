@@ -77,7 +77,8 @@ printf 'sdk.dir=%s\n' "$SDK_DIR" > local.properties
 mkdir -p "$ROOT/build/robolectric-home"
 
 # App 编译期要用 BYD framework 的签名（App 内 extends AbsBYDAuto*Listener），先出 stub jar
-if [ -f tools/build-framework-stub.sh ]; then ./tools/build-framework-stub.sh || true; fi
+# 公开源码快照不含 helper/stub，直接使用 app/libs 里随仓库发布的公开 stub，避免空 jar 覆盖。
+if [ -d helper/stub ] && [ -f tools/build-framework-stub.sh ]; then ./tools/build-framework-stub.sh || true; fi
 
 # helper 的 dex/apk 是构建产物（.gitignore 已忽略），换机器、刚 clone、或改了 helper/src 时必须重编；
 # 漏编的后果不是报错，而是 APK 里带着**旧 fid 表**（实测：输出 129 行而不是 131，新 fid 全读不到）。

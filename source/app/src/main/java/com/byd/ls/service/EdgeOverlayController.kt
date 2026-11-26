@@ -58,6 +58,9 @@ class EdgeOverlayController(
     @Volatile var currentBottomDp: Int = DEFAULT_EDGE_DP
         private set
 
+    /** 桌面/home 时关掉悬浮条的可触摸标志，让边缘触摸真正落到桌面，不吞点击。 */
+    @Volatile private var touchable: Boolean = true
+
     @Volatile private var debugVisible: Boolean = false
     /** attach 失败后的自动重试计数（避免一次性放弃导致"手势掉了"一直不恢复） */
     private var retryCount = 0
@@ -246,6 +249,23 @@ class EdgeOverlayController(
         LsLog.i(TAG, "底部手势 ${if (enabled) "恢复" else "暂停（输入法弹出）"}")
     }
 
+    /**
+     * 桌面/home 时整条边缘悬浮窗设为不可触摸。
+     * 只让 recognizer 不动作还不够 —— 窗口仍会吃掉桌面边缘的点击；
+     * 加 FLAG_NOT_TOUCHABLE 后触摸直接落到 Launcher，手势和点击都不工作。
+     */
+    fun setTouchable(enabled: Boolean) {
+        if (touchable == enabled) return
+        val main = android.os.Looper.getMainLooper()
+        if (android.os.Looper.myLooper() != main) {
+            android.os.Handler(main).post { setTouchable(enabled) }
+            return
+        }
+        touchable = enabled
+        applyVisibility()
+        LsLog.i(TAG, "边缘悬浮条 ${if (enabled) "恢复触摸" else "桌面禁用触摸"}")
+    }
+
     fun setDebugVisible(visible: Boolean) {
         if (debugVisible == visible) return
         debugVisible = visible
@@ -262,9 +282,10 @@ class EdgeOverlayController(
      */
     private fun applyVisibility() {
         val bottomOn = bottomEnabled
-        applyFlag(leftView, leftLp, true)
-        applyFlag(rightView, rightLp, true)
-        applyFlag(bottomView, bottomLp, bottomOn)
+        val base = touchable
+        applyFlag(leftView, leftLp, base)
+        applyFlag(rightView, rightLp, base)
+        applyFlag(bottomView, bottomLp, base && bottomOn)
     }
 
     private fun applyFlag(v: View?, lp: WindowManager.LayoutParams?, touchable: Boolean) {
@@ -283,6 +304,7 @@ class EdgeOverlayController(
 
     fun stateText(): String {
         if (!attached) return "未挂载"
+        if (!touchable) return "${host.label} · 桌面(暂停)"
         val b = if (!bottomEnabled) "暂停(键盘)" else "工作"
         return "${host.label} · 左右条:工作 · 底部条:$b"
     }

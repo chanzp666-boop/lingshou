@@ -1,6 +1,7 @@
 package com.byd.ls.cluster.data;
 
 import com.byd.ls.cluster.cfg.ClusterDebug;
+import com.byd.ls.cluster.FeatureGate;
 
 
 import java.io.BufferedReader;
@@ -122,6 +123,8 @@ public class VehicleData {
     private static volatile long busySince = 0L;
 
     public static void refresh(final android.content.Context ctx) {
+        // 1.5.3beta2：油耗/胎压全关时，连 800ms 的取数节拍都不再进入。
+        if (!FeatureGate.card() || !FeatureGate.vehicle()) return;
         long now = android.os.SystemClock.elapsedRealtime();
         // 看门狗：真机上遇到过刷新线程卡住（原生读取或文件打开被占），
         // busy 卡在 true 就再也不刷新，界面整片空白。卡超过 15 秒就强制解锁。
@@ -137,7 +140,7 @@ public class VehicleData {
         new Thread(new Runnable() {
             @Override public void run() {
                 try {
-                    {
+                    if (FeatureGate.tyre()) {
                         // 胎压：迪加优先；5s 无完整返回才允许原生 FID/映射表；迪加锁死后不再读映射。
                         long nowP = android.os.SystemClock.elapsedRealtime();
                         TyreSource.maybeFallback();
@@ -161,7 +164,7 @@ public class VehicleData {
                         ClusterDebug.e("CLUSTERLAB", "fid FAIL " + t);
                     }
 
-                    pollStats(ctx);
+                    if (FeatureGate.fuel()) pollStats(ctx);
                     // 电耗也走累计口径，不再混用迪加的行程值
                     ok = true;
                     long nowApi = System.currentTimeMillis();
@@ -197,6 +200,7 @@ public class VehicleData {
      * 只覆盖有效值；云辇读不到时保留上次有效值，由绘制层决定是否隐藏。
      */
     public static void refreshAdas() {
+        if (!FeatureGate.card() || !FeatureGate.tyre()) return;
         double[] a = com.byd.ls.shell.FidDirect.adasValues();
         if (a == null) return;
         boolean changed = false;
@@ -235,7 +239,7 @@ public class VehicleData {
         }
         double v;
         // 胎压四轮只能有一个源：迪加锁定后，FID 映射表这条线一律不写。
-        if (TyreSource.mappingAllowed()) {
+        if (FeatureGate.tyre() && TyreSource.mappingAllowed()) {
             v = s.value("tirePressFL"); if (!Double.isNaN(v) && v > 0) { nTyreLF = v; if (isPlausiblePressure(v)) pressure[0] = (int) v; }
             v = s.value("tirePressFR"); if (!Double.isNaN(v) && v > 0) { nTyreRF = v; if (isPlausiblePressure(v)) pressure[1] = (int) v; }
             v = s.value("tirePressRL"); if (!Double.isNaN(v) && v > 0) { nTyreLB = v; if (isPlausiblePressure(v)) pressure[2] = (int) v; }
@@ -349,7 +353,7 @@ public class VehicleData {
     }
 
     private static void loadEvents(android.content.Context ctx) {
-        if (evLoaded) return;
+        if (evLoaded && com.byd.ls.shell.BydDirect.isListenerRegistered()) return;
         evLoaded = true;
         // 与迪友同架构：在 App 进程内注册监听（推送路径无权限检查）
         try { com.byd.ls.shell.BydDirect.registerStatisticListener(ctx); } catch (Throwable ignored) {}
@@ -712,10 +716,10 @@ public class VehicleData {
             // 该事件是 tyre 设备的 dval（29.0/30.0，×10 后 290/300），与 instrument 的 LF
             // （1246781456，245/290 kPa）抢同一个字段 → 左上胎压忽大忽小，用户实测为「错的」。
             // 轮位一律只认 instrument 的四个 id（INSTRUMENT_2IN1_*_TYRE_PRESSURE，kPa）。
-            case 1246781456: if (TyreSource.mappingAllowed()) nTyreLF = raw; break; // INSTRUMENT LF TYRE PRESSURE (kPa)
-            case 1246781468: if (TyreSource.mappingAllowed()) nTyreRF = raw; break;
-            case 1246781480: if (TyreSource.mappingAllowed()) nTyreLB = raw; break;
-            case 1246781492: if (TyreSource.mappingAllowed()) nTyreRB = raw; break;
+            case 1246781456: if (FeatureGate.tyre() && TyreSource.mappingAllowed()) nTyreLF = raw; break; // INSTRUMENT LF TYRE PRESSURE (kPa)
+            case 1246781468: if (FeatureGate.tyre() && TyreSource.mappingAllowed()) nTyreRF = raw; break;
+            case 1246781480: if (FeatureGate.tyre() && TyreSource.mappingAllowed()) nTyreLB = raw; break;
+            case 1246781492: if (FeatureGate.tyre() && TyreSource.mappingAllowed()) nTyreRB = raw; break;
             case 1147142160: if (raw > 0) nLowVolt = raw / 10.0; break; // LOWEST_BATTERY_VOLTAGE
             case 1147142192: if (raw > 0) nHighVolt = raw / 10.0; break;
             case 1151336480: nCurrent = raw / 10.0; break;             // INSTANTANEOUS_CURRENT

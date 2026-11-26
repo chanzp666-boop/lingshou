@@ -46,6 +46,9 @@ class GestureRecognizer(
     /** 底部条是否被暂停（输入法弹出时置 true） */
     @Volatile var bottomPaused: Boolean = false
 
+    /** 桌面/home 时整条手势链路不工作；由前台包名切换。 */
+    @Volatile var blocked: Boolean = false
+
     private var downX = 0f
     private var downY = 0f
     private var downAt = 0L
@@ -88,6 +91,7 @@ class GestureRecognizer(
     var onGestureRelease: (() -> Unit)? = null
 
     fun onTouch(edge: Edge, ev: MotionEvent) {
+        if (blocked) return
         if (edge == Edge.BOTTOM && bottomPaused) return
 
         when (ev.actionMasked) {

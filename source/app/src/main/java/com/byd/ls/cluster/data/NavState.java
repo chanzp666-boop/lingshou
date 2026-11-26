@@ -32,6 +32,7 @@ public final class NavState {
     /** 有事件提示导航状态可能变了（高德广播 / 无障碍事件）：短时间把探测提到 300ms 一轮。
      *  这是「大小窗切换慢」的正解：平时低频省 CPU，有事立刻高频确认。 */
     public static void boost(long ms) {
+        if (!demandOn || detectOff) return;
         long t = android.os.SystemClock.elapsedRealtime() + ms;
         if (t > boostUntil) boostUntil = t;
         // 1.4.192：boost 以前只改截止时间，采样线程在 10s/60s 的 sleep 里收不到；
@@ -46,6 +47,7 @@ public final class NavState {
      * 要等 helper 自己的 60s 兜底帧 —— 现场 18:21:08→18:22:07 的第二段 60 秒就是这个。
      */
     public static void eventBoost(long ms) {
+        if (!demandOn || detectOff) return;
         requestCaptureAsync();
         boost(ms);
     }
@@ -106,11 +108,7 @@ public final class NavState {
         return t != 0L && android.os.SystemClock.elapsedRealtime() - t < EVENT_TRUST_MS;
     }
 
-    /** 导航特征文本：高德导航页一定有行程信息，出现即视为「导航中」——不占 screencap 的肯定证据。 */
-    private static final String[] NAV_TEXT = {
-            "公里", "米后", "剩余", "预计", "前方", "转弯", "红绿灯", "驶入", "靠左", "靠右", "调头", "到达"
-    };
-    private static volatile long lastPosTextAt = 0L;
+    /** 导航特征文本在 1.5.4.4 已退出运行链路，判定统一由 AmapService 日志负责。 */
 
     /** 兼容旧调用：只有包名。 */
     public static void onNavWindow(String pkg) {
@@ -120,32 +118,18 @@ public final class NavState {
     /**
      * 无障碍报了导航 App 的窗口变化。
      *
-     * 1.4.140：从「只提速」升级为「第二定论源」——窗口文本命中导航特征串就直接 force(true)，
-     * 不经过像素状态机（像素要 2~3 帧还要 screencap）。
-     * 否定证据不发，只提速：高德窗口里某一瞬间没有行程文字太正常（弹音量条、通知、切页），
-     * 拿它判退出必然抖。退出交给广播（NAVIEXIT / st==9），广播静默时才轮到像素。
+     * 1.5.4.4：只负责叫醒一次信号轮询；不再解析窗口文本、不 force、不截屏。
+     * 进入/退出统一由 AmapService 的 mIsBYDMapNaving 判定。
      */
     public static void onNavWindow(String pkg, String text, String desc) {
         long now = android.os.SystemClock.elapsedRealtime();
-        boolean pos = false;
-        if (text != null || desc != null) {
-            String all = (text == null ? "" : text) + " " + (desc == null ? "" : desc);
-            for (String k : NAV_TEXT) {
-                if (all.contains(k)) { pos = true; break; }
-            }
-        }
-        if (pos && (lastPosTextAt == 0L || now - lastPosTextAt >= 1_000L)) {
-            // 1 秒节流：导航中高德会持续刷新文本，别每帧都 force（force 里有日志和重绘）
-            lastPosTextAt = now;
-            NavLog.w("NAV_TEXT 命中导航特征文本 → 直接定论（不等像素）", true);
-            force(true, "a11y-text");
-        }
-        // 2 秒节流：导航 App 连开几个窗口时不重复刷。lastNavWinAt==0 表示「还没收到过」，
-        // 不能拿 0 当时间戳直接相减 —— 刚开机时 elapsedRealtime 也很小，会把第一条事件吞掉。
+        // 1.5.4.4：无障碍只负责叫醒一次信号轮询，不再用窗口文本直接定论，
+        // 也不再触发截屏。判定统一收口到 AmapService 的 mIsBYDMapNaving。
         if (lastNavWinAt != 0L && now - lastNavWinAt < 2_000L) return;
         lastNavWinAt = now;
-        eventBoost(6_000L);
-        NavLog.w("NAV_WIN pkg=" + pkg + " 文本=" + (pos ? "有导航特征" : "无") + " → 提速 6s + 抓帧", true);
+        boost(6_000L);
+        wakePoller();
+        NavLog.w("NAV_WIN pkg=" + pkg + " → 唤醒信号轮询", true);
     }
 
     private static long lastOverrideRead = 0L;
@@ -163,6 +147,7 @@ public final class NavState {
     }
 
     public static void set(boolean nav, String src) {
+        if (!demandOn || detectOff) return;
         if (nav != navigating) {
             if (nav) {
                 // 1.4.138：开始导航补发仪表 16 档（方向盘/中控切页会把档位打回 17）
@@ -173,6 +158,8 @@ public final class NavState {
         }
         navigating = nav;
         source = src;
+        sigConfirmCount = 0;
+        sigConfirmValue = false;
         boost(4000);
         // 立刻通知界面重绘，不等下一个绘制周期
         Runnable cb = onChange;
@@ -189,6 +176,7 @@ public final class NavState {
      * 广播说「导航结束」也回不到大窗 —— 这正是实车「结束不切换」的直接原因。
      */
     public static void force(boolean nav, String src) {
+        if (!demandOn || detectOff) return;
         long now = android.os.SystemClock.elapsedRealtime();
         // 1.4.187 B1：只在导航状态真翻转时让 ls-nav 截一帧确认；
         // 稳态不重复触发，避免把事件通道变成新的 200ms 截屏循环。
@@ -209,6 +197,7 @@ public final class NavState {
     /** 1.4.187 B1：异步 touch 触发文件；helper 截 2 帧后回到空闲。 */
     private static volatile long lastCaptureReqAt = 0L;
     private static void requestCaptureAsync() {
+        if (!demandOn || detectOff) return;
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastCaptureReqAt < 500L) return;
         lastCaptureReqAt = now;
@@ -238,30 +227,47 @@ public final class NavState {
      * readOverride() 自己也带 2s 节流，代价可忽略。
      */
     public static boolean isNavigating() {
+        // 1.5.3beta2：是否允许识别由 FeatureGate.nav() 显式下发，不再在这里读全屏偏好。
+        // 音乐关/全屏优化开时，界面调用只会拿到 false，不会再把 poller 拉起来。
+        if (!demandOn || detectOff) return false;
         // 每帧都会进来：这一行是「界面还活着」的心跳，poller 据此决定何时停采样。
         // 卡片窗口被回收后 onDraw 不再被调，采样线程随之退出，不再白烧 CPU 和 adbd 槽位。
         lastUiAt = android.os.SystemClock.elapsedRealtime();
-        // 1.5.0-beta1：全屏导航模式下音乐窗恒为大窗，直接关掉整条导航识别（省掉采样开销）。
-        // 直接以偏好为准：开关无论从设置页还是开机恢复生效，这里都立刻对齐。
-        boolean fullNav = com.byd.ls.config.GesturePrefs.INSTANCE.getProjectionFullOnBoot();
-        if (fullNav != detectOff) setDetectionDisabled(fullNav);
-        if (detectOff) return false;
         readOverride();
         if (overrideOn) return overrideValue;
         startPoller();
         return dashCard || navigating;
     }
 
-    /** 1.5.0-beta1：全屏导航优化开启时，停止音乐大小窗识别，恒为大音乐窗。 */
-    private static volatile boolean detectOff = false;
+    /** 1.5.3beta2：音乐卡片是否在要导航识别；由 CardActivity/FeatureGate 下发。 */
+    private static volatile boolean demandOn = false;
+    private static volatile boolean detectOff = true;
+
+    /**
+     * 显式设置导航识别需求。
+     *
+     * 不在这里启动 poller：只有界面真的调用 isNavigating() 时才启动，
+     * 避免“功能关了但后台还活着”。重新打开后下一次界面绘制会自然恢复。
+     */
+    public static void setDemand(boolean on) {
+        if (on) {
+            if (demandOn && !detectOff) return;
+            demandOn = true;
+            detectOff = false;
+            lastUiAt = android.os.SystemClock.elapsedRealtime();
+            ClusterDebug.e("CLUSTERLAB-NAV", "导航识别需求: 开");
+            return;
+        }
+        demandOn = false;
+        setDetectionDisabled(true);
+    }
 
     public static void setDetectionDisabled(boolean off) {
         if (detectOff == off) return;
         detectOff = off;
         if (!off) {
-            pollerStarted = false;
+            // 兼容旧调用：只放开闸门，不在这里主动启动线程。
             lastUiAt = android.os.SystemClock.elapsedRealtime();
-            startPoller();
             return;
         }
         dashCard = false;
@@ -271,7 +277,7 @@ public final class NavState {
         pollerStarted = false;
         android.content.Context c = ClusterExec.ctx();
         if (c != null) runCatchingStop(c);
-        ClusterDebug.e("CLUSTERLAB-NAV", "导航识别已关闭（全屏导航模式，音乐窗恒大窗）");
+        ClusterDebug.e("CLUSTERLAB-NAV", "导航识别已关闭");
     }
 
     private static int confirmCount = 0;
@@ -287,6 +293,11 @@ public final class NavState {
     /** 仪表上有没有高德导航卡片（像素判定，见 NavProbe）。 */
     private static volatile boolean dashCard = false;
     private static volatile boolean pollerStarted = false;
+    /** 信号翻转连续确认：防止两个 helper 交替写 1/0 时一帧一帧地翻窗。 */
+    private static int sigConfirmCount = 0;
+    private static boolean sigConfirmValue = false;
+    private static long sigConfirmAt = 0L;
+    private static final long SIG_CONFIRM_WINDOW_MS = 2_500L;
     /** 采样线程的唤醒闸门：导航事件来了必须立刻打断 10s/60s 的等待。 */
     private static final Object POLLER_GATE = new Object();
     private static volatile boolean pollerWakeAsked = false;
@@ -297,6 +308,8 @@ public final class NavState {
     private static volatile long lastKeepaliveAt = 0L;
     /** 1.4.193：导航态让 helper 进入 200ms 连续采样，退出立即恢复 B1 低频。 */
     private static volatile boolean fastCaptureOn = false;
+    /** 1.5.4.4：当前是否已让 helper 进入像素兜底；只在信号失效/恢复时切换。 */
+    private static volatile boolean navPixelModeOn = false;
     /** 界面最近一次调用 isNavigating() 的时刻（onDraw 每帧都会调），poller 据此判断界面是否还在 */
     private static volatile long lastUiAt = 0L;
     /** 采样线程多久没被界面调用就自行退出（卡片被关/被回收后不再截屏） */
@@ -318,6 +331,7 @@ public final class NavState {
     // 1.4.124：空闲 2.5s → 1.2s。采样已经搬进 shell 域常驻 helper（navshot），
     // 一帧不占 adbd 槽位，节拍可以收紧到「0.4s 采样 + 1.2s 轮询」，最坏 1.6s 内定论。
     private static final long GAP_IDLE_MS = 600L;      // 1.4.125：采样改本地读占比（1~7ms），节拍再压一半
+    private static final long GAP_SIGNAL_MS = 500L;    // 1.5.4.4：正常只读信号文件，500ms 足够快且不耗电
     private static final long GAP_NAV_MS = 250L;     // 1.4.193：导航中配合 helper 200ms 连续帧，回到 1.4.178 的读取节拍
     private static final long GAP_BOOST_MS = 800L;
     private static final long GAP_BROADCAST_MS = 800L;
@@ -338,7 +352,9 @@ public final class NavState {
     private static final long GAP_YIELD_MS = 10_000L;
     /** 1.4.194：高德早信号有效期与像素让路窗口。信号本身来自 AmapService 日志，秒级新鲜。 */
     private static final long SIG_TTL_MS = 3_000L;
-    private static final long SIG_HOLD_MS = 1_500L;
+    /** 信号新鲜时压住像素。音乐大窗会盖住仪表顶部导航卡片，像素会持续误判“无卡”；
+     *  原来 1.5s 保持窗不够覆盖两帧采样，现场表现就是信号 true 和像素 false 每 2 秒对拉一次。 */
+    private static final long SIG_HOLD_MS = 5_000L;
 
     /** 采集进程收工；通道忙时失败也无所谓，helper 自己会在 app 进程消失时退出。 */
     private static void runCatchingStop(android.content.Context c) {
@@ -377,8 +393,50 @@ public final class NavState {
         }, "LsNavActive").start();
     }
 
+    /** 正常信号链：只按 AmapService 日志翻窗，不触发任何截图。 */
+    private static void applySignalOnly(boolean sigOn, long nowMs) {
+        holdUntil = Math.max(holdUntil, nowMs + SIG_HOLD_MS);
+        if (sigOn == dashCard) {
+            sigConfirmCount = 0;
+            sigConfirmValue = false;
+            return;
+        }
+        if (sigOn != sigConfirmValue
+                || nowMs - sigConfirmAt > SIG_CONFIRM_WINDOW_MS) {
+            sigConfirmValue = sigOn;
+            sigConfirmCount = 1;
+            sigConfirmAt = nowMs;
+        } else {
+            sigConfirmCount++;
+        }
+        if (sigConfirmCount >= 2) {
+            ClusterDebug.e("CLUSTERLAB-NAV", "布局切换: "
+                    + (sigOn ? "小窗(导航中)" : "大窗(未导航)"));
+            NavLog.w("布局切换: " + (sigOn ? "小窗" : "大窗") + " 来源=amapsig", true);
+            dashCard = sigOn;
+            sigConfirmCount = 0;
+            sigConfirmValue = false;
+            lastSwitchAt = nowMs;
+            set(sigOn, "amapsig");
+        }
+    }
+
+    /** 信号或 helper 掉线时才打开像素兜底；helper 收到文件后才会开始截屏。 */
+    private static void setNavPixelMode(boolean on) {
+        if (navPixelModeOn == on) return;
+        navPixelModeOn = on;
+        final android.content.Context c = ClusterExec.ctx();
+        if (c == null) return;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try { com.byd.ls.shell.HelperBridge.setNavPixelMode(c, on); }
+                catch (Throwable ignored) {}
+            }
+        }, on ? "LsNavPixelOn" : "LsNavPixelOff").start();
+    }
+
     private static void startPoller() {
-        if (detectOff) return;
+        if (!demandOn || detectOff) return;
         if (pollerStarted) return;
         pollerStarted = true;
         pollerStartedAt = android.os.SystemClock.elapsedRealtime();
@@ -418,11 +476,23 @@ public final class NavState {
                         if (c != null) runCatchingStop(c);
                         return;
                     }
+                    // 1.5.4.4：正常只走 AmapService 日志信号，零截屏。
+                    // 信号文件和 helper 心跳都有效就立刻判定，不再等像素。
+                    boolean signalOk = NavProbe.refreshSignal();
+                    if (signalOk) {
+                        setNavPixelMode(false);
+                        applySignalOnly(NavProbe.lastSig == 1,
+                                android.os.SystemClock.elapsedRealtime());
+                        sleepGap(GAP_SIGNAL_MS);
+                        continue;
+                    }
+                    // 信号失效/helper 掉线：才打开像素兜底，让 helper 恢复截图。
+                    setNavPixelMode(true);
                     boolean fail = false;
                     try {
                         // sample() 返回 false 有两种情况：真的没卡片，或者截图失败。
                         // 用 lastRatio<0 区分：<0 表示这一轮没测出来，直接跳过，别改状态。
-                        boolean on = NavProbe.sample();
+                        boolean on = NavProbe.sampleForFallback();
                         // 采到帧才算数：失败时不能拿旧值喂状态机（导航结束了会回不到大窗）
                         fail = !NavProbe.lastOk;
                         long nowMs = android.os.SystemClock.elapsedRealtime();
@@ -433,18 +503,37 @@ public final class NavState {
                         int sig = NavProbe.lastSig;
                         long sigAt = NavProbe.lastSigAt;
                         if (!fail && sig >= 0 && sigAt > 0
-                                && System.currentTimeMillis() - sigAt < SIG_TTL_MS
-                                && (sig == 1) != dashCard) {
+                                && System.currentTimeMillis() - sigAt < SIG_TTL_MS) {
                             boolean sigOn = sig == 1;
-                            ClusterDebug.e("CLUSTERLAB-NAV", "布局切换: "
-                                    + (sigOn ? "小窗(导航中)" : "大窗(未导航)") + " 来源=amapsig");
-                            NavLog.w("布局切换: " + (sigOn ? "小窗" : "大窗") + " 来源=amapsig", true);
-                            dashCard = sigOn;
-                            setFastCapture(sigOn);
-                            confirmCount = 0;
-                            lastSwitchAt = nowMs;
-                            holdUntil = nowMs + SIG_HOLD_MS;
-                            set(sigOn, "amapsig");
+                            // 信号新鲜时始终压住像素，哪怕当前状态已经一致。
+                            // 音乐大窗会遮住导航卡片，像素会一直读“无卡”；不续保持窗，
+                            // 就会在 amapsig=true 和 dash=false 之间来回跳。
+                            holdUntil = Math.max(holdUntil, nowMs + SIG_HOLD_MS);
+                            if (sigOn != dashCard) {
+                                // 两个 helper 同时写 .nav_sig 时会出现 1/0 交替；
+                                // 连续两次同值才翻窗，单帧噪声直接丢掉。
+                                if (sigOn != sigConfirmValue
+                                        || nowMs - sigConfirmAt > SIG_CONFIRM_WINDOW_MS) {
+                                    sigConfirmValue = sigOn;
+                                    sigConfirmCount = 1;
+                                    sigConfirmAt = nowMs;
+                                } else {
+                                    sigConfirmCount++;
+                                }
+                                if (sigConfirmCount >= 2) {
+                                    ClusterDebug.e("CLUSTERLAB-NAV", "布局切换: "
+                                            + (sigOn ? "小窗(导航中)" : "大窗(未导航)") + " 来源=amapsig");
+                                    NavLog.w("布局切换: " + (sigOn ? "小窗" : "大窗") + " 来源=amapsig", true);
+                                    dashCard = sigOn;
+                                    setFastCapture(sigOn);
+                                    confirmCount = 0;
+                                    lastSwitchAt = nowMs;
+                                    set(sigOn, "amapsig");
+                                }
+                            } else {
+                                sigConfirmCount = 0;
+                                sigConfirmValue = false;
+                            }
                         }
                         if (!fail && !fresh) {
                             // 1.4.122：限频期拿回的是缓存结论，不喂状态机。

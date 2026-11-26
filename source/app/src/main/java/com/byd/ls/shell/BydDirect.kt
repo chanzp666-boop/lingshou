@@ -1,6 +1,7 @@
 package com.byd.ls.shell
 
 import android.content.Context
+import com.byd.ls.cluster.FeatureGate
 import com.byd.ls.util.LsLog
 import java.lang.reflect.Method
 
@@ -144,8 +145,9 @@ object BydDirect {
      * 监听必须挂在常驻进程里（一次性 app_process 注册完就退出，收不到推送）。
      */
     @JvmStatic
+    @Synchronized
     fun registerStatisticListener(ctx: Context) {
-        if (listenerRegistered) return
+        if (!FeatureGate.card() || !FeatureGate.vehicle() || listenerRegistered) return
         listenerRegistered = true
         // 三个设备都要注册：油耗/电耗在 statistic，**仪表显示值（含胎压/油耗显示）在 instrument**，
         // 胎压原值在 tyre。只注册 statistic 会拿不到油耗与胎压（docs/11 §14）。
@@ -162,6 +164,31 @@ object BydDirect {
             appendEvent(ctx, "typed " + TypedStatListener.attachTyre(ctx))
         }.onFailure { LsLog.w(TAG, "typed listener 注册失败: ${it.message}") }
     }
+
+    /**
+     * 1.5.3beta2：油耗三项全关时反注册所有 BYDAuto 监听，停止事件继续进 App。
+     * 重新打开后 registerStatisticListener 会重新注册。
+     */
+    @JvmStatic
+    fun unregisterStatisticListener() {
+        synchronized(this) {
+            for ((dev, pair) in bound) {
+                val (device, listener) = pair
+                runCatching {
+                    val lIf = Class.forName("android.hardware.IBYDAutoListener")
+                    device.javaClass.getMethod("unregisterListener", lIf).invoke(device, listener)
+                }.onFailure { LsLog.w(TAG, "反注册 $dev 监听失败: ${it.message}") }
+            }
+            bound.clear()
+            listenerRegistered = false
+            runCatching { TypedStatListener.detach() }
+                .onFailure { LsLog.w(TAG, "反注册 typed 监听失败: ${it.message}") }
+            closeEventWriter()
+        }
+    }
+
+    @JvmStatic
+    fun isListenerRegistered(): Boolean = listenerRegistered
 
     /**
      * 1.4.71：**重注册拉快照**。BYD 设备在 registerListener 时会投一次当前值，
@@ -260,6 +287,7 @@ object BydDirect {
 
     @Synchronized
     private fun appendEvent(ctx: Context, line: String) {
+        if (!FeatureGate.card() || !FeatureGate.vehicle()) return
         runCatching {
             val dir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
             val f = java.io.File(dir, "native-events.log")

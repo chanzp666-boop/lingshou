@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.PowerManager
 import android.os.SystemClock
 import com.byd.ls.cluster.ClusterExec
+import com.byd.ls.cluster.FeatureGate
 import com.byd.ls.cluster.data.Card
 import com.byd.ls.cluster.data.MediaListener
 import com.byd.ls.config.GesturePrefs
@@ -217,6 +218,7 @@ object ClusterCardKeeper {
     }
 
     private fun healMedia() {
+        if (!FeatureGate.music()) return
         // :guard 与主进程不共享静态状态，MediaListener.connected 在这里永远是 false。
         // 以主进程每 2s 刷新的心跳文件为准；旧实现只看静态变量，导致每次巡检都误判掉线。
         if (mediaHeartbeatAlive()) return

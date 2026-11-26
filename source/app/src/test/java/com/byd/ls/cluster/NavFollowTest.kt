@@ -1,5 +1,6 @@
 package com.byd.ls.cluster
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -48,13 +49,12 @@ class NavFollowTest {
     }
 
     @Test
-    fun a11yTextDrivesVerdict() {
+    fun a11yTextOnlyWakesSignalPolling() {
         assertTrue(navState.contains("public static void onNavWindow(String pkg, String text, String desc)"))
-        assertTrue(navState.contains("onNavWindow(pkg, null, null);"))
-        assertTrue(navState.contains("force(true, \"a11y-text\");"))
-        assertTrue(navState.contains("\"公里\"") && navState.contains("\"剩余\""))
+        assertTrue(navState.contains("wakePoller();"))
+        assertFalse(navState.contains("force(true, \"a11y-text\");"))
+        assertFalse(navState.contains("NAV_TEXT"))
         assertTrue(a11y.contains("NavState.onNavWindow("))
-        assertTrue(a11y.contains("event.contentDescription"))
         assertTrue(a11y.contains("TYPE_WINDOW_CONTENT_CHANGED"))
         assertTrue(a11y.contains("lastNavContentAt"))
     }

@@ -36,8 +36,18 @@ class HeartbeatReceiver : BroadcastReceiver() {
         LsLog.init(app)
 
         if (!GesturePrefs.enabled) {
-            LsLog.i(TAG, "手势未开启，停止心跳")
-            unschedule(app)
+            // 1.5.3beta2：手势关了，但自愈/休眠唤醒链不能断。
+            // 不再 unschedule；只跳过手势服务，保留 Guard/Daemon/A11y/卡片自愈。
+            LsLog.i(TAG, "手势未开启，保留自愈心跳")
+            GuardService.start(app)
+            DaemonGuard.start(app)
+            Thread {
+                runCatching { com.byd.ls.service.A11yHealer.healAsync(app, "heartbeat-idle") }
+                if (GesturePrefs.clusterEnabled) {
+                    runCatching { com.byd.ls.service.ClusterCardKeeper.heal(app, "heartbeat-idle") }
+                }
+            }.apply { isDaemon = true; name = "ls-hb-idle"; start() }
+            schedule(app)
             return
         }
 

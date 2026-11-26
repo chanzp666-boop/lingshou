@@ -1,6 +1,21 @@
 # 变更记录
 
+## 1.5.4.6（versionCode 2697，2026-11-26）
+
+- **版本**：`versionCode 2697` / `versionName 1.5.4.6`；包名 `com.byd.ls`，使用独立公开 release 签名。公开 code 2697 保证已装 1.5.3 / 2696 可直接覆盖升级；显示版本与自用最新版一致。
+- **功能同步**：将 1.5.3beta1/beta2 至 1.5.4.6 的公开可同步改动合入公开源码，包括完整全关门控、导航早信号、小窗歌词静态帧停绘、歌词候选回退。
+- **全关门控**：新增 `FeatureGate`；卡片/油耗/胎压/音乐关闭后停止对应窗口、监听、轮询、线程、网络与歌词请求；重开后恢复。跨进程卡片 flag 继续供 `:guard` 与 shell 看门狗使用。
+- **歌词策略**：主源网易云先行 1.8s，超时或未命中再启动 QQ/酷狗/酷我三源对冲；总预算 9s。只有四源都干净返回“没有这首歌”才写 24h 负缓存；音乐关闭立即断开在途请求并作废旧 generation。
+- **导航**：helper 从 `AmapService` 日志提取 `mIsBYDMapNaving` 早信号，`NavState` 优先按 `/data/local/tmp/.nav_sig` 切换；信号失效才进入像素兜底，减少每秒截屏。移除旧 `NavReceiver` 广播路径。
+- **小窗歌词**：行号与文本未变化时不再重绘静态层，减少静止帧 CPU 与整层重建。
+- **歌词候选回退**：QQ/酷狗首选候选无词时，按同名且时长差 ≤1.5s 继续尝试其他候选，修复《壁上观》等因歌手别名/首选版本无词被误杀的问题。
+- **公开边界保留**：ADB 手动授权仍走 `connectForAuthorization`（`abortOnUnauthorised=false`）；胎压仍由 `TyreSource` 优先迪加 `127.0.0.1:8988`、5s 无完整四轮才回退原生映射；远程调试固定关闭，无 `ACTION_RPC`；公开 helper 与公开 framework stub 保留。
+- **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**160 tests / 0 failures / 0 errors / 2 skipped**；APK 1,545,771 B，sha256 `a780f52120d6210cde7f2a0189000f6bf214aebfc3c1973e79ab4c6769385dcc`。
+- **产物**：`apk/lingshou-1.5.4.6.apk`。
+- **历史版本**：`v1.5.2`、`v1.5.3` 的 tag、Release 与 APK 保留，只增不删。
+
 ## 1.5.3（versionCode 2696，2026-11-23）
+
 
 - 空调手势由双指改为三指：三指左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传。
 - `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。

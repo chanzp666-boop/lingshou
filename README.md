@@ -5,28 +5,40 @@
 DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/胎压/歌词）+ 三指空调控制。
 单 APK，不改系统 App，不依赖 root/Shizuku；特权操作走内置 adblib → `127.0.0.1:5555` 的 uid 2000 shell。
 
-这是公开专用仓库，**只保留当前公开版**：
+这是公开专用仓库，**历史 Release 只增不删**：
 
-- 公开包：`com.byd.ls` / `versionCode 2696` / `versionName 1.5.3`
+- 公开包：`com.byd.ls` / `versionCode 2697` / `versionName 1.5.4.6`
 - 公开版使用独立 release 证书签名
 
-> 首次安装直接安装 APK；已装 1.5.2 可直接升级到 1.5.3。
+> 首次安装直接安装 APK；已装 1.5.2 / 1.5.3 可直接升级到 1.5.4.6。
 
 ## 下载
 
-- `apk/lingshou-1.5.3.apk` — 1.5.3 公开版
+- `apk/lingshou-1.5.4.6.apk` — 1.5.4.6 公开版
+- `apk/lingshou-1.5.3.apk` — 1.5.3 历史版本（保留）
 - `apk/SHA256SUMS.txt` — APK 校验值
 
 | 项 | 值 |
 |---|---|
 | 包名 | `com.byd.ls` |
-| versionCode / versionName | `2696` / `1.5.3` |
-| 大小 | 1,532,943 B |
-| SHA-256 | `ff50272f29613564373e08be77a6bb464ca0b7e398feb8c20f4a36052356ba85` |
+| versionCode / versionName | `2697` / `1.5.4.6` |
+| 大小 | 1,545,771 B |
+| SHA-256 | `a780f52120d6210cde7f2a0189000f6bf214aebfc3c1973e79ab4c6769385dcc` |
 | 签名 | 独立公开 release 证书，证书 SHA-256 `3920e540903d9be162d43c534c5cb8d0fc7c611c07d5036fd6e0176661780843` |
 | 远程调试 | 固定关闭，不包含 relay 地址、bootstrap、operator token |
 
+## 1.5.4.6 功能同步
+
+- 完整同步自用版 1.5.4.6 的功能与性能：`FeatureGate` 全关门控、导航 `amapsig` 早信号、小窗歌词静态帧停绘、歌词候选回退。
+- 歌词加载改为主源先行 1.8s、超时三源对冲、总预算 9s；音乐关闭时立即取消在途请求并作废旧 generation。
+- 导航识别改用 helper 从 `AmapService` 提取 `mIsBYDMapNaving` 早信号；信号失效才进入像素兜底，减少每秒截屏，小窗/大窗切换更快。
+- 小窗歌词只在行号或文本变化时重绘，静止帧不再触发整层重建。
+- QQ/酷狗歌词按“同名 + 同时长（±1.5s）”回退候选，首选版本无歌词时继续取可用版本，修复《壁上观》等被优选候选误杀的问题。
+- 公开版保留原有独立边界：ADB 手动授权仍走 `connectForAuthorization`（`abortOnUnauthorised=false`）；胎压仍由 `TyreSource` 优先迪加 `127.0.0.1:8988`、5s 无完整四轮才回退原生映射；远程调试固定关闭，无 `ACTION_RPC`。
+- 构建验证：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**160 tests / 0 failures / 0 errors / 2 skipped**；APK `versionCode=2697`、`versionName=1.5.4.6`。
+
 ## 1.5.3 三指空调与深浅跟随
+
 
 - 空调控制由双指改为三指：三指左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传，地图/图片双指缩放不再被空调截断。
 - `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。
@@ -75,7 +87,7 @@ DiLink 4.0（Android 10）车机应用：主屏全屏手势 + 仪表屏自绘卡
 
 ## 功能与权限
 
-- 公开版手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑与历史公开版一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加、1.5.2 的全关即停修复、1.5.3 的三指空调与 helper 单实例锁均已包含在当前包。
+- 公开版手势、仪表卡片、媒体、空调、无障碍、看门狗逻辑与历史公开版一致；1.5.1.1 的 ADB 授权修复、1.5.1.2 的胎压降级、1.5.1.3 的胎压优先迪加、1.5.2 的全关即停修复、1.5.3 的三指空调与 helper 单实例锁、1.5.4.6 的全关门控/导航早信号/歌词优化均已包含在当前包。
 - 远程调试固定关闭：`RemoteConfig` 在公开构建中恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - 已移除 `com.byd.ls.action.RPC` 广播入口，不能通过广播调用 `RemoteRpc`。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`，保持与历史公开版一致，减少 OEM 后台策略差异。

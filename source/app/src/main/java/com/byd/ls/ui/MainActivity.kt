@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         bindLog()
         bindBydLog()
         bindCluster()
-        GesturePrefs.writeCardFlag(application)
+        GesturePrefs.writeCardFlag(applicationContext)
         bindActions()
         bindRemoteDebug()
 
@@ -329,13 +329,41 @@ class MainActivity : AppCompatActivity() {
         sw.isChecked = checked
         sw.setOnCheckedChangeListener { _, v ->
             onChange(v)
-            GesturePrefs.writeCardFlag(this)
+            onCardFlagsChanged()
         }
         row.addView(sw)
         return row
     }
 
-    /** 1.4.66：卡片副标题（暗色小字，与仪表卡片一致） */
+    /**
+     * 1.5.3beta2：任一仪表元素开关变化后，
+     * 1) 已开窗口立即按新门控重绘；
+     * 2) 窗口不存在但还有功能时，走既有的卡片自愈拉起；
+     * 3) 所有功能都关时，关窗口、停导航/媒体，不等下一次 tick。
+     */
+    private fun onCardFlagsChanged() {
+        GesturePrefs.writeCardFlag(applicationContext)
+        val card = com.byd.ls.cluster.FeatureGate.card()
+        if (card) {
+            com.byd.ls.cluster.ui.CardActivity.applyFeatureState(this)
+            com.byd.ls.cluster.ui.CardActivity.refreshNow()
+            if (!com.byd.ls.cluster.ui.CardActivity.hasWindow()) {
+                Thread {
+                    runCatching { ClusterCardKeeper.heal(applicationContext, "card-flags") }
+                }.apply { isDaemon = true; name = "ls-card-flags"; start() }
+            }
+        } else {
+            com.byd.ls.cluster.ui.CardActivity.shutdown()
+            com.byd.ls.cluster.data.NavState.setDemand(false)
+            com.byd.ls.cluster.data.MediaListener.setFeatureEnabled(false)
+        }
+        if (!com.byd.ls.cluster.FeatureGate.card() || !com.byd.ls.cluster.FeatureGate.vehicle()) {
+            com.byd.ls.shell.FidDirect.stop()
+        }
+        if (!com.byd.ls.cluster.FeatureGate.card() || !com.byd.ls.cluster.FeatureGate.vehicle()) {
+            com.byd.ls.shell.BydDirect.unregisterStatisticListener()
+        }
+    }
     private fun subTitle(t: String): android.widget.TextView {
         val tv = android.widget.TextView(this)
         tv.text = t
@@ -360,7 +388,7 @@ class MainActivity : AppCompatActivity() {
         sw.isChecked = checked
         sw.setOnCheckedChangeListener { _, v ->
             onChange(v)
-            GesturePrefs.writeCardFlag(this)
+            onCardFlagsChanged()
         }
         row.addView(sw)
         return row
@@ -494,10 +522,8 @@ class MainActivity : AppCompatActivity() {
                 A11yHealer.healAsync(applicationContext, "switch-on")
                 A11yHealer.repairOnUserOpen(applicationContext)
             } else {
+                // 1.5.3beta2：只停手势功能；无障碍/开机自启/休眠唤醒/自愈壳不动。
                 GlobalGestureService.stop(this)
-                GuardService.stop(this)
-                DaemonGuard.stop(this)
-                HeartbeatReceiver.unschedule(this)
             }
             updateSwitchHint()
             b.switchAc.isEnabled = checked
@@ -508,7 +534,11 @@ class MainActivity : AppCompatActivity() {
         b.switchProjectionFull.setOnCheckedChangeListener { _, checked ->
             if (suppress) return@setOnCheckedChangeListener
             GesturePrefs.projectionFullOnBoot = checked
-            com.byd.ls.cluster.data.NavState.setDetectionDisabled(checked)
+            com.byd.ls.cluster.data.NavState.setDemand(
+                com.byd.ls.cluster.FeatureGate.card() && com.byd.ls.cluster.FeatureGate.nav()
+            )
+            com.byd.ls.cluster.ui.CardActivity.applyFeatureState(this)
+            com.byd.ls.cluster.ui.CardActivity.refreshNow()
             if (checked) com.byd.ls.cluster.ClusterProjection.startKeepFull(this)
             else com.byd.ls.cluster.ClusterProjection.stopKeepFull()
             toast(if (checked) "已开启：全屏导航 + 音乐窗恒大窗" else "已关闭：使用原厂投屏方案，音乐窗跟随导航")
@@ -525,11 +555,11 @@ class MainActivity : AppCompatActivity() {
         b.tvSwitchHint.text = if (GesturePrefs.enabled)
             "已开启：左/右边缘滑动=返回，底部上滑=桌面（跟随系统默认桌面）"
         else
-            "关闭时不会创建任何悬浮窗，也不驻留前台服务"
+            "已关闭：手势/悬浮条/三指空调停止；无障碍、自启与自愈守护保留"
     }
 
     // =====================================================================
-    //  三指空调开关（beta6）
+    //  三指空调开关（beta6，2026-11-22 改三指）
     // =====================================================================
     private fun bindAcSwitch() {
         suppress = true
@@ -779,7 +809,9 @@ class MainActivity : AppCompatActivity() {
     private fun bindCluster() {
         b.btnCardStart.setOnClickListener {
             GesturePrefs.clusterEnabled = true
-            GesturePrefs.writeCardFlag(this)
+            GesturePrefs.writeCardFlag(applicationContext)
+            // 恢复卡片时立刻对齐媒体/导航门控；Card.restart 再创建窗口。
+            com.byd.ls.cluster.ui.CardActivity.applyFeatureState(this)
             b.tvCardStatus.text = "卡片：正在拉起…"
             lifecycleScope.launch {
                 val msg = withContext(Dispatchers.IO) {
@@ -793,7 +825,7 @@ class MainActivity : AppCompatActivity() {
 
         b.btnCardStop.setOnClickListener {
             GesturePrefs.clusterEnabled = false
-            GesturePrefs.writeCardFlag(this)
+            onCardFlagsChanged()
             val msg = runCatching { Card.stop() }.getOrElse { "失败：" + it.message }
             toast(msg)
             b.tvCardStatus.text = "卡片：已停止"

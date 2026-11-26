@@ -4,6 +4,7 @@ import android.content.Context
 import com.byd.ls.config.GesturePrefs
 import com.byd.ls.shell.ShellManager
 import com.byd.ls.util.LsLog
+import com.byd.ls.cluster.FeatureGate
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -115,12 +116,13 @@ object ClusterProjection {
     /** 开关打开时启动兜底线程：点仪表任何功能/卡片重绘导致掉档，最迟一个周期拉回全屏。 */
     @JvmStatic
     fun startKeepFull(ctx: Context) {
+        if (!FeatureGate.full()) return
         remember(ctx)
         if (keepOn) return
         keepOn = true
         val app = ctx.applicationContext
         val t = Thread {
-            while (keepOn) {
+            while (keepOn && FeatureGate.full()) {
                 try { runBlocking { apply(app, MODE_FULL, quiet = true) } } catch (e: Throwable) {}
                 try { Thread.sleep(KEEP_FULL_MS) } catch (e: InterruptedException) { break }
             }

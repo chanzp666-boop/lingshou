@@ -1,3 +1,15 @@
+## 1.5.4.6（versionCode 2697，2026-11-26）—— 同步自用 1.5.4.6 功能
+
+- **版本**：`versionCode 2697` / `versionName 1.5.4.6`；公开 code 2697 保证 1.5.3 / 2696 可覆盖升级，显示版本与自用最新版一致。
+- **全关门控**：新增 `FeatureGate`；卡片/油耗/胎压/音乐关闭后停止对应窗口、监听、轮询、线程、网络与歌词请求；重开后恢复。
+- **导航早信号**：helper 从 `AmapService` 日志提取 `mIsBYDMapNaving`，`NavState` 优先按 `/data/local/tmp/.nav_sig` 切换；信号失效才进入像素兜底；移除旧 `NavReceiver`。
+- **小窗歌词**：行号与文本未变化时不再重绘静态层，减少静止帧 CPU 与整层重建。
+- **歌词候选回退**：QQ/酷狗首选候选无词时，按同名且时长差 ≤1.5s 继续尝试其他候选，修复《壁上观》等误杀。
+- **歌词策略**：主源先行 1.8s，超时/未命中再启动三源对冲；总预算 9s；只有四源都干净返回“没有这首歌”才写 24h 负缓存。
+- **公开边界**：ADB 手动授权仍走 `connectForAuthorization`（`abortOnUnauthorised=false`）；胎压仍由 `TyreSource` 优先迪加 `127.0.0.1:8988`、5s 无完整四轮才回退原生映射；远程调试固定关闭，无 `ACTION_RPC`。
+- **构建/验证**：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**160 tests / 0 failures / 0 errors / 2 skipped**；APK 1,545,771 B，sha256 `a780f52120d6210cde7f2a0189000f6bf214aebfc3c1973e79ab4c6769385dcc`。
+- **产物**：`apk/lingshou-1.5.4.6.apk`；历史 `v1.5.2`、`v1.5.3` 保留。
+
 ## 1.5.3（versionCode 2696，2026-11-23）—— 三指空调
 
 - **版本**：`versionCode 2696` / `versionName 1.5.3`；包名 `com.byd.ls`，使用独立公开 release 签名。

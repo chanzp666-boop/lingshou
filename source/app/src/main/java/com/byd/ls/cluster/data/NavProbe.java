@@ -122,6 +122,15 @@ public final class NavProbe {
     private static final long HEARTBEAT_TTL_MS = 7_000L;
 
     public static boolean sample() {
+        return sample(false);
+    }
+
+    /** 信号失效后的兜底采样：即使 helper 心跳还在，也不能只返回旧值。 */
+    public static boolean sampleForFallback() {
+        return sample(true);
+    }
+
+    private static boolean sample(boolean pixelFallback) {
         // 特权命令保护窗口内直接让路：拉卡片/深恢复正在抢 adbd 槽位，
         // 此时再截屏只会把对方踢掉（实测 Stream open actively rejected）。
         if (ClusterExec.isProtected()) return lastResult;
@@ -143,7 +152,8 @@ public final class NavProbe {
             }
             // 1.4.187 B1：采集进程空闲时不产出指标，但有 5s 心跳。
             // 心跳新鲜就说明它还活着，只是等待事件；不要掉进 adblib 截图兜底。
-            if (helperHeartbeatFresh()) {
+            // 但信号失效后的兜底采样必须拿到新帧，不能因为 helper 还在就返回旧值。
+            if (!pixelFallback && helperHeartbeatFresh()) {
                 lastViaHelper = true;
                 lastOk = true;
                 return lastResult;
@@ -271,9 +281,11 @@ public final class NavProbe {
     private static void readSigFile() {
         try {
             java.io.File f = new java.io.File(SIG_FILE);
-            if (!f.exists()) return;
-            long mt = f.lastModified();
-            if (mt <= 0L || System.currentTimeMillis() - mt > 4_000L) return;
+            if (!f.exists()) {
+                lastSig = -1;
+                lastSigAt = 0L;
+                return;
+            }
             String s = new String(java.nio.file.Files.readAllBytes(f.toPath()),
                     java.nio.charset.StandardCharsets.UTF_8).trim();
             int sp = s.indexOf(0x20);
@@ -281,6 +293,16 @@ public final class NavProbe {
             lastSig = Integer.parseInt(s.substring(0, sp));
             lastSigAt = Long.parseLong(s.substring(sp + 1));
         } catch (Throwable ignored) {}
+    }
+
+    /**
+     * 正常链路每 500~600ms 只读一次信号文件，不触发 screencap。
+     * 信号是不是“还活着”看 helper 心跳；AmapService 只在状态变化时打日志，
+     * 所以不能拿 sig_t 的年龄判断，否则导航中会误判信号过期。
+     */
+    public static boolean refreshSignal() {
+        readSigFile();
+        return lastSig >= 0 && helperHeartbeatFresh();
     }
 
     /** 读采集进程写的占比行；超过 2.5 秒没更新就返回 null（采集进程死了，走兜底）。 */
@@ -316,6 +338,10 @@ public final class NavProbe {
             if (dark < 0f || white < 0f || amap < 0f || bw < 0f || blue < 0f) return null;
             lastSig = sig;
             lastSigAt = sigT;
+            // 指标行新鲜 = helper 还活着。AmapService 只在状态变化时打日志，
+            // 导航中可能几十秒不写新 sig_t；此时仍以 helper 当前 sig 为准，
+            // 否则 3 秒 TTL 一过，音乐大窗遮住卡片就会被像素误判成“未导航”。
+            if (sig >= 0) lastSigAt = System.currentTimeMillis();
             return new float[]{dark, white, amap, bw, blue};
         } catch (Throwable t) {
             return null;

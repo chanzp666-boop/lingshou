@@ -112,6 +112,14 @@ class LsAccessibilityService : AccessibilityService() {
         // 连上后立刻扫一次，避免"服务晚于键盘启动"导致状态错
         updateImeState(force = true)
         pendingImeVisible?.let { dispatchIme(it) }
+        // 服务实例可能还没创建好，稍后再补一次前台包名；桌面启动时不会漏掉 home 约束。
+        ensureHandler.postDelayed({
+            runCatching {
+                GlobalGestureService.instance?.onForegroundPackage(
+                    rootInActiveWindow?.packageName?.toString()
+                )
+            }
+        }, 1_000L)
     }
 
     /** 1.4.140：CONTENT_CHANGED 的 300ms 闸门（地图渲染时事件很密）。 */
@@ -124,6 +132,7 @@ class LsAccessibilityService : AccessibilityService() {
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 val pkg = event.packageName?.toString() ?: return
+                GlobalGestureService.instance?.onForegroundPackage(pkg)
                 // 1.4.117：导航 App 自己的窗口一变就提速采样（进入导航 5~10s → 约 2s）。
                 // 只动节拍不动判定；事件不来就什么都不发生，行为与 1.4.116 一致。
                 // 1.4.140：带上窗口文本 —— 命中导航特征串就直接定论，不再只提速

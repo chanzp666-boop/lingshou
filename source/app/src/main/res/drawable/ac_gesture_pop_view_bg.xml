@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <corners android:radius="8dp" />
-    <!-- 日间浅色 / 夜间原厂深灰，由 values(-night)/colors.xml 自动切换 -->
+    <!-- 三指空调固定原厂深灰，不跟随系统深浅色 -->
     <solid android:color="@color/ac_hud_bg" />
 </shape>

@@ -1,13 +1,13 @@
 package com.byd.ls.cluster.ui;
 
 import com.byd.ls.cluster.ClusterExec;
+import com.byd.ls.cluster.FeatureGate;
 import com.byd.ls.cluster.data.Card;
 import com.byd.ls.cluster.cfg.ClusterDebug;
 import com.byd.ls.cluster.cfg.ClusterStyle;
 import com.byd.ls.cluster.cfg.Ver;
 import com.byd.ls.cluster.data.LyricLoader;
 import com.byd.ls.cluster.data.MediaListener;
-import com.byd.ls.cluster.data.NavReceiver;
 import com.byd.ls.cluster.data.NavState;
 import com.byd.ls.cluster.data.VehicleData;
 import com.byd.ls.cluster.data.YBPrivilege;
@@ -108,11 +108,20 @@ public class CardActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        // 1.5.0-beta1：全屏导航优化开关决定是否还做音乐大小窗识别。
-        boolean fullNav = com.byd.ls.config.GesturePrefs.INSTANCE.getProjectionFullOnBoot();
-        com.byd.ls.cluster.data.NavState.setDetectionDisabled(fullNav);
+        if (!FeatureGate.card()) {
+            stopping = true;
+            // 外部 am start 在“全关”状态下也可能把本 Activity 叫起来；
+            // 这里同步关掉导航/媒体，并停仍可能残留的车辆采样线程。
+            applyFeatureState(this);
+            com.byd.ls.shell.FidDirect.stop();
+            com.byd.ls.shell.BydDirect.unregisterStatisticListener();
+            finish();
+            return;
+        }
+        // 1.5.3beta2：音乐关/全屏优化开时，导航识别与 200ms 截屏必须完全停。
+        applyFeatureState(this);
         // 1.5.0-beta2：全屏导航下 MCU 会被任意重绘打回 17，周期盲补 16 兜住。
-        if (fullNav) com.byd.ls.cluster.ClusterProjection.startKeepFull(this);
+        if (FeatureGate.full()) com.byd.ls.cluster.ClusterProjection.startKeepFull(this);
         else com.byd.ls.cluster.ClusterProjection.stopKeepFull();
         current = this;
         windowAlive = true;
@@ -131,6 +140,8 @@ public class CardActivity extends Activity {
         super.onPause();
     }
     @Override protected void onDestroy() {
+        NavState.setDemand(false);
+        NavState.onChange = null;
         VehicleData.setAdasInvalidator(null);
         if (current == this) current = null;
         windowAttached = false;
@@ -144,6 +155,23 @@ public class CardActivity extends Activity {
         CardActivity a = current;
         if (a == null || a.cardView == null) return;
         a.cardView.refreshConfigNow();
+    }
+
+    /** 同进程卡片窗口是否真的存在。 */
+    public static boolean hasWindow() {
+        CardActivity a = current;
+        return a != null && windowAttached && windowVisible;
+    }
+
+    /**
+     * 1.5.3beta2：开关变化后同步导航识别/通知监听的真实启停。
+     * 只做状态切换，不创建卡片窗口。
+     */
+    public static void applyFeatureState(Context c) {
+        boolean card = FeatureGate.card();
+        boolean nav = card && FeatureGate.nav();
+        NavState.setDemand(nav);
+        MediaListener.setFeatureEnabled(card && FeatureGate.music());
     }
 
     /** 助理点「停止卡片」时用：只关界面，不做 force-stop（force-stop 会让我们下次开机收不到 BOOT_COMPLETED）。 */
@@ -167,6 +195,7 @@ public class CardActivity extends Activity {
      */
     private static void scheduleSelfHeal() {
         if (stopping) return;
+        if (!FeatureGate.card()) return;
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastResumeAt < WAKE_HEAL_GRACE_MS) {
             LsLog.INSTANCE.i("CardHeal", "亮屏稳定期内，跳过自愈（attached=" + windowAttached
@@ -193,6 +222,10 @@ public class CardActivity extends Activity {
                 @Override public void run() {
                     if (stopping || windowVisible) {
                         LsLog.INSTANCE.i("CardHeal", "自愈跳过 stopping=" + stopping + " visible=" + windowVisible);
+                        return;
+                    }
+                    if (!FeatureGate.card()) {
+                        LsLog.INSTANCE.i("CardHeal", "功能全关，跳过自愈");
                         return;
                     }
                     CardActivity a = current;
@@ -245,35 +278,48 @@ public class CardActivity extends Activity {
             }
             ClusterDebug.e("CLUSTERLAB-BOOT", "local_launch 命中 display 1");
         }
+        // 1.5.3beta2：所有仪表功能都关时，不再创建窗口，也不拉起任何采样线程。
+        if (!FeatureGate.card()) {
+            ClusterDebug.e("CLUSTERLAB", "没有卡片功能，跳过窗口创建");
+            stopping = true;
+            applyFeatureState(this);
+            com.byd.ls.shell.FidDirect.stop();
+            com.byd.ls.shell.BydDirect.unregisterStatisticListener();
+            finish();
+            return;
+        }
         requestAdb();
-        NavReceiver.start(this);   // 高德导航状态广播
+        applyFeatureState(this);
         AlarmKeeper.schedule(this);
         // 保活并入灵手的 :guard（每 60 秒巡检卡片可见性），不再单起 :keep 进程
         // 冷启动时通知监听常常没绑上（force-stop 解绑后系统不会自动恢复）。
         // 以前只等 2.5s 试一次；开机进程/ADB 还没稳定时会直接跳过，之后靠 10 分钟巡检太晚。
         // 现在在卡片启动后的前 ~2 分钟持续检查，ADB 通道一就绪就 disallow → allow 重绑。
-        new Thread(new Runnable() {
-            @Override public void run() {
-                for (int i = 0; i < 12; i++) {
-                    try { Thread.sleep(i == 0 ? 2500L : 8000L); } catch (Throwable ignored) {}
-                    if (MediaListener.connected) {
-                        ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind already connected");
-                        return;
+        if (FeatureGate.music()) {
+            new Thread(new Runnable() {
+                @Override public void run() {
+                    for (int i = 0; i < 12; i++) {
+                        try { Thread.sleep(i == 0 ? 2500L : 8000L); } catch (Throwable ignored) {}
+                        if (!FeatureGate.music()) return;
+                        if (MediaListener.connected) {
+                            ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind already connected");
+                            return;
+                        }
+                        if (!ClusterExec.ready()) continue;
+                        ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind attempt " + (i + 1));
+                        ClusterExec.exec("cmd notification disallow_listener com.byd.ls/com.byd.ls.cluster.data.MediaListener", 6000);
+                        try { Thread.sleep(1200L); } catch (Throwable ignored) {}
+                        ClusterExec.exec("cmd notification allow_listener com.byd.ls/com.byd.ls.cluster.data.MediaListener", 6000);
+                        try { Thread.sleep(2500L); } catch (Throwable ignored) {}
+                        if (MediaListener.connected) {
+                            ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind success attempt " + (i + 1));
+                            return;
+                        }
                     }
-                    if (!ClusterExec.ready()) continue;
-                    ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind attempt " + (i + 1));
-                    ClusterExec.exec("cmd notification disallow_listener com.byd.ls/com.byd.ls.cluster.data.MediaListener", 6000);
-                    try { Thread.sleep(1200L); } catch (Throwable ignored) {}
-                    ClusterExec.exec("cmd notification allow_listener com.byd.ls/com.byd.ls.cluster.data.MediaListener", 6000);
-                    try { Thread.sleep(2500L); } catch (Throwable ignored) {}
-                    if (MediaListener.connected) {
-                        ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind success attempt " + (i + 1));
-                        return;
-                    }
+                    ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind gave up after 12 attempts");
                 }
-                ClusterDebug.e("CLUSTERLAB-MEDIA", "rebind gave up after 12 attempts");
-            }
-        }).start();
+            }).start();
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
         // 卡片只是"信息层"：不接触摸，点按全部穿透给下面的全屏导航
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
@@ -573,6 +619,10 @@ public class CardActivity extends Activity {
 
         private final Runnable tick = new Runnable() {
             @Override public void run() {
+                if (!FeatureGate.card()) {
+                    shutdown();
+                    return;
+                }
                 // 10 秒一次心跳：守护进程据此判断界面在，不再去 adb 里查 dumpsys
                 long now = SystemClock.elapsedRealtime();
                 // 1.4.139：心跳跟「窗口是否存在」走，不跟前台走 —— 被顶到后台也要继续跳，
@@ -581,43 +631,60 @@ public class CardActivity extends Activity {
                 // 没有音乐、也没有歌词动画时，界面是静止的：完全不重绘，1 秒轮一次看状态就够。
                 // 以前固定 250ms 重绘一次，白烧了一个核的 4~5%。
                 // 歌词滚动刷整条歌词带；只转唱片时只刷唱片那一小块（面积差 6 倍，30fps 也不费）
-                boolean playing = MediaListener.playing;
+                boolean music = FeatureGate.music();
+                boolean playing = music && MediaListener.playing;
 
                 // B7：开机媒体恢复后 tick 只刷唱片，drawLyrics 永远不跑，歌词也就不加载。
                 // 元数据版本一变先整卡重绘；歌词从 0 变成有内容时再补刷歌词带。
-                int mediaRev = MediaListener.revision;
-                if (mediaRev != lastMediaRev) {
-                    lastMediaRev = mediaRev;
-                    invalidate();
-                }
-                int lyricLines = LyricLoader.lines.size();
-                if (lyricLines != lastLyricLines) {
-                    lastLyricLines = lyricLines;
-                    if (lyricLines > 0) {
-                        invalidate((int) SL - 8, (int) (ST - 10),
-                                (int) (SL + 566), (int) SB);
+                int lyricLines = 0;
+                if (music) {
+                    int mediaRev = MediaListener.revision;
+                    if (mediaRev != lastMediaRev) {
+                        lastMediaRev = mediaRev;
+                        invalidate();
                     }
-                }
-                // 四源失败/开机网络未就绪时，drawLyrics 收不到下一次整卡重绘；
-                // 这里每 5 秒补一次 load，成功后再靠上面的行数变化刷新歌词带。
-                if (musicOn() && playing && lyricLines == 0
-                        && MediaListener.title.length() > 0
-                        && now - lyricKickAt > 5000L) {
-                    lyricKickAt = now;
-                    LyricLoader.load(getContext(), MediaListener.title,
-                            MediaListener.artist, MediaListener.duration);
+                    lyricLines = LyricLoader.lines.size();
+                    if (lyricLines != lastLyricLines) {
+                        lastLyricLines = lyricLines;
+                        if (lyricLines > 0) {
+                            invalidate((int) SL - 8, (int) (ST - 10),
+                                    (int) (SL + 566), (int) SB);
+                        }
+                    }
+                    // 四源失败/开机网络未就绪时，drawLyrics 收不到下一次整卡重绘；
+                    // 这里每 5 秒补一次 load，成功后再靠上面的行数变化刷新歌词带。
+                    if (playing && lyricLines == 0
+                            && MediaListener.title.length() > 0
+                            && now - lyricKickAt > 5000L) {
+                        lyricKickAt = now;
+                        LyricLoader.load(getContext(), MediaListener.title,
+                                MediaListener.artist, MediaListener.duration);
+                    }
+                } else {
+                    lyricAnim = false;
+                    lastLyricLines = 0;
                 }
 
-                if (lyricAnim) {
+                if (playing && lyricAnim) {
                     invalidate((int) SL - 8, (int) (ST - 10), (int) (SL + 566), (int) SB);
                     postDelayed(this, 33);
-                } else if (playing && !bigMusic() && LyricLoader.lines.size() > 0) {
-                    // 小窗没有唱片，但不能只按 700ms 取数：歌词滚动窗口只有 620ms，
-                    // 低频 tick 会直接跳过滚动，看起来就是“不滚了”。
-                    // 只刷歌词带，20fps 采样，保留滚动体感；真正的动画帧仍走上面的 33ms。
-                    invalidate((int) SL - 8, (int) (ST - 10), (int) (SL + 566), (int) SB);
-                    postDelayed(this, 50);
-                } else if (playing && bigMusic() && discRect.width() > 0f) {
+                } else if (music && playing && !bigMusic() && lyricLines > 0) {
+                    // 1.5.4.5：小窗歌词静止时不再每 50ms 空刷整条歌词带。
+                    // 只有真正进入滚动/淡入窗口才 invalidate；静止段按下一句时间调度，
+                    // 并保留最多 700ms 一次的车辆数据兜底刷新。
+                    updateLyricAnim();
+                    if (lyricAnim) {
+                        invalidate((int) SL - 8, (int) (ST - 10), (int) (SL + 566), (int) SB);
+                        postDelayed(this, 33);
+                    } else {
+                        long next = nextLyricAnimDelay();
+                        if (next >= 700L) {
+                            if (FeatureGate.vehicle()) VehicleData.refresh(getContext());
+                            invalidate();
+                        }
+                        postDelayed(this, next);
+                    }
+                } else if (music && playing && bigMusic() && discRect.width() > 0f) {
                     invalidate((int) discRect.left, (int) discRect.top,
                             (int) Math.ceil(discRect.right), (int) Math.ceil(discRect.bottom));
                     postDelayed(this, 50);   // 20fps：无歌词动画时唱片足够顺，省主线程
@@ -626,7 +693,7 @@ public class CardActivity extends Activity {
                     // refresh() 只在 onDraw 里调用，而这里以前只 postDelayed(1000) 不重绘，
                     // 于是「没音乐 = 不重绘 = 永远不取数」，界面就冻在第一次画的 "--" 上
                     // （真机实测 Total frames rendered: 2，油耗/胎压/歌曲全是空白）。
-                    VehicleData.refresh(getContext());
+                    if (FeatureGate.vehicle()) VehicleData.refresh(getContext());
                     invalidate();
                     postDelayed(this, 700);
                 }
@@ -685,11 +752,11 @@ public class CardActivity extends Activity {
             long nowKey = System.currentTimeMillis();
             if (staticCache != null && nowKey - lastKeyAt < 150) return;
             lastKeyAt = nowKey;
-            String key = "" + (MediaListener.art == null ? 0 : System.identityHashCode(MediaListener.art))
+            String key = "art:" + MediaListener.artKey
                     + "|" + VehicleData.pressure[0] + "," + VehicleData.pressure[1]
                     + "," + VehicleData.pressure[2] + "," + VehicleData.pressure[3]
                     + "|" + getWidth() + "x" + getHeight()
-                    + "|nav:" + NavState.isNavigating()
+                    + "|nav:" + (FeatureGate.nav() && NavState.isNavigating())
                     + "|adas:" + Math.round(VehicleData.nSocSave) + "," + Math.round(VehicleData.nSuspension)
                     + "|" + colorKey()
                     // 只保留静态层真正绘制的内容；油耗数字已在 onDraw 直接绘制
@@ -710,7 +777,7 @@ public class CardActivity extends Activity {
             postInvalidate();   // 缓存重建后整屏重绘一次，别只刷局部区
         }
 
-        private boolean lastNav = NavState.isNavigating();
+        private boolean lastNav = false;
 
         {
             NavState.onChange = new Runnable() {
@@ -723,7 +790,8 @@ public class CardActivity extends Activity {
         }
 
         @Override protected void onDraw(Canvas cv) {
-            boolean nav = NavState.isNavigating();
+            boolean wantNav = FeatureGate.nav();
+            boolean nav = wantNav && NavState.isNavigating();
             if (nav != lastNav) {
                 lastNav = nav;
                 cacheKey = "";          // 强制下一行 ensureStatic() 重建静态层
@@ -732,8 +800,8 @@ public class CardActivity extends Activity {
                 // 原来一处切换会在 logcat 里出两条「布局切换」（相隔 ~25ms），量化时被算成两次。
                 ClusterDebug.w("CLUSTERLAB-NAV", "界面重排: " + (nav ? "小窗(导航中)" : "大窗(未导航)"));
             }
-            VehicleData.refresh(getContext());
-            VehicleData.refreshAdas();
+            if (FeatureGate.vehicle()) VehicleData.refresh(getContext());
+            if (FeatureGate.tyre()) VehicleData.refreshAdas();
             resolveNight();
             ensureStatic();
             android.graphics.Rect cb = cv.getClipBounds();
@@ -749,8 +817,8 @@ public class CardActivity extends Activity {
                 }
             }
             // 油耗数字变化最快，单独直接画，避免每次变化都重建/上传整张 1920×720 静态层
-            if (full || cb.intersects(0, (int) (FUEL_LINE_Y - 44f),
-                    getWidth(), (int) (FUEL_LINE_Y + 16f))) {
+            if (FeatureGate.fuel() && (full || cb.intersects(0, (int) (FUEL_LINE_Y - 44f),
+                    getWidth(), (int) (FUEL_LINE_Y + 16f)))) {
                 drawFuelLine(cv);
             }
             // 唱片单独旋转时只画唱片；歌词排版不再跟着唱片帧白跑
@@ -805,7 +873,7 @@ public class CardActivity extends Activity {
             float ax = artX(), ay = artY(), art = artSize();
             Bitmap cover = MediaListener.art;
             r.set(ax, ay, ax + art, ay + art);
-            if (!bigMusic()) {
+            if (!bigMusic() && musicOn()) {
             if (cover != null) {
                 cv.save();
                 Path clip = new Path();
@@ -851,6 +919,7 @@ public class CardActivity extends Activity {
          * 云辇读不到（车型没有云辇）时自动省略，保电继续显示。
          */
         private void drawAdasStatus(Canvas cv) {
+            if (!FeatureGate.tyre()) return;
             String save = VehicleData.socSaveLabel();
             String susp = VehicleData.suspensionLabel();
             if (save.isEmpty() && susp.isEmpty()) return;
@@ -883,6 +952,7 @@ public class CardActivity extends Activity {
         }
 
         private void drawFuelLine(Canvas cv) {
+            if (!FeatureGate.fuel()) return;
             // 1.4.59：三项各自独立开关（用户自己选显示哪几条），全部车机直读值
             com.byd.ls.config.GesturePrefs p = com.byd.ls.config.GesturePrefs.INSTANCE;
             boolean showOil = p.getShowOil();
@@ -1088,7 +1158,25 @@ public class CardActivity extends Activity {
             lyricAnim = (progress > 0.001f && progress < 0.999f) || since < 1f;
         }
 
+        /**
+         * 下一句歌词进入滚动窗口前还有多久。
+         * 静止段用它替代 50ms 固定轮询；最多 700ms 一次，保证车辆数据不长时间不刷新。
+         */
+        private long nextLyricAnimDelay() {
+            long effPos = correctedPosition() + LYRIC_LEAD_MS + readTuningLead();
+            java.util.List<Long> ts = LyricLoader.times;
+            int idx = LyricLoader.indexAt(effPos);
+            int next = idx + 1;
+            if (next < ts.size()) {
+                long d = ts.get(next) - 620L - effPos;
+                if (d > 0L) return Math.min(d, 700L);
+                return 33L;
+            }
+            return 700L;
+        }
+
         private void drawLyrics(Canvas cv) {
+            if (!musicOn()) return;
             float l1 = SL;
             long nowPos = correctedPosition();
             if (MediaListener.title.length() > 0) {
@@ -1373,6 +1461,7 @@ public class CardActivity extends Activity {
         private long discAt;
 
         private void drawDisc(Canvas cv) {
+            if (!musicOn()) return;
             float size = artSize();
             Bitmap src = MediaListener.art;
             if (discBmp == null || discSrc != src || discPx != size) {

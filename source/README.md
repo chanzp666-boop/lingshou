@@ -5,13 +5,24 @@ Android 10 车机应用：主屏全屏手势 + 仪表屏自绘卡片（油耗/�
 
 ## 版本
 
-- `versionCode 2696` / `versionName 1.5.3`
+- `versionCode 2697` / `versionName 1.5.4.6`
 - 远程调试固定关闭：公开构建下 `RemoteConfig` 恒返回关闭，不读取外部 relay 地址；远程 Agent 组件不可外部拉起。
 - release 包不包含 `com.byd.ls.action.RPC` 导出广播；`RestartReceiver` 只保留看门狗需要的重启/自愈动作。
 - 保留 `WAKE_LOCK`、`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 权限，保持与历史公开版一致。
 - 公开源码中 ADB 命令、无障碍组件、仪表卡片、通知监听、守护进程均按 `com.byd.ls` 解析。
 
+## 1.5.4.6 功能同步
+
+- 同步自用最新 1.5.4.6 的功能与性能：`FeatureGate` 全关门控、导航 `amapsig` 早信号、小窗歌词静态帧停绘、QQ/酷狗歌词候选回退。
+- 全关后停止对应卡片窗口、监听、轮询、线程、网络与歌词请求；重开后恢复。跨进程卡片 flag 继续供 `:guard` 与 shell 看门狗使用。
+- 歌词主源先行 1.8s，超时或未命中再启动三源对冲；总预算 9s；只有四源都干净返回“没有这首歌”才写 24h 负缓存。
+- 导航优先使用 helper 从 `AmapService` 日志提取的 `mIsBYDMapNaving` 早信号；信号失效才进入像素兜底。
+- 小窗歌词行号/文本未变化时不再重绘静态层；QQ/酷狗按同名且时长差 ≤1.5s 回退候选，修复《壁上观》等被首选无词版本误杀的问题。
+- **公开专属边界未改**：ADB 手动授权走 `connectForAuthorization`（`abortOnUnauthorised=false`）；胎压由 `TyreSource` 优先迪加 `127.0.0.1:8988`、5s 无完整四轮才回退原生映射；远程调试固定关闭，无 `ACTION_RPC`。
+- 验证：JDK 17，`testReleaseUnitTest assembleRelease` **BUILD SUCCESSFUL**；**160 tests / 0 failures / 0 errors / 2 skipped**；`versionCode=2697`、`versionName=1.5.4.6`。
+
 ## 1.5.3 三指空调与深浅跟随
+
 
 - 空调控制由双指改为三指：左右滑=风量，上下滑=温度；1/2/4 指不参与，2 指恢复透传。
 - `finger-touch` 只在三指时截断物理触摸并发质心采样；`AcFeature` 只在 `C,3` 亮 HUD，`GestureEngine` 只接受 3 指。

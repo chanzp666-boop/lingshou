@@ -88,6 +88,9 @@ class BootReceiver : BroadcastReceiver() {
                 LsLog.i(TAG, "TICK：手势服务不在，已拉起")
                 writeBootLog(app, "tick heal gesture")
             }
+            // 1.5.3beta2：手势关了，自愈壳也不能断 —— Guard/Daemon 幂等拉起。
+            runCatching { GuardService.start(app) }
+            runCatching { DaemonGuard.start(app) }
             // 看门狗自愈：开机那次若因通道没通而失败，这里是每 60s 一次的补装机会
             // （ensure 内部有 30s 防抖，不会每次都真跑）。onReceive 只有 ~10s 预算，
             // 而分块写脚本要十几次 exec，必须丢到后台线程。
